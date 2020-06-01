@@ -77,7 +77,7 @@ pad the distance in pixel from border to face
 output: x the camera output, g_y the corresponding landmark"""
    
     #Get webcam image
-    fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device='cuda:0')
+    fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device=device.type)
     no_pic = True
     
     while(no_pic == True):

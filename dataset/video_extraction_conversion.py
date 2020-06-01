@@ -50,9 +50,20 @@ def generate_landmarks(frames_list):
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device ='cuda:0')
     
     for i in range(len(frames_list)):
-        try:
+        # try:
             input = frames_list[i]
             preds = fa.get_landmarks(input)[0]
+
+            # crop frame
+            maxx, maxy = np.max(preds, axis=0)
+            minx, miny = np.min(preds, axis=0)
+            margin = 0.4
+            miny = max(int(miny - (maxy - miny) * margin), 0)
+            maxy = min(int(maxy + (maxy - miny) * margin), input.shape[0])
+            minx = max(int(minx - (maxx - minx) * margin), 0)
+            maxx = min(int(maxx + (maxx - minx) * margin), input.shape[1])
+            input = input[miny:maxy, minx:maxx]
+            preds -= [minx, miny]
 
             dpi = 100
             fig = plt.figure(figsize=(input.shape[1]/dpi, input.shape[0]/dpi), dpi = dpi)
@@ -81,11 +92,10 @@ def generate_landmarks(frames_list):
             data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
+            input, data = cv2.resize(input, (224, 224), interpolation=cv2.INTER_AREA), cv2.resize(data, (224, 224), interpolation=cv2.INTER_AREA)
             frame_landmark_list.append((input, data))
             plt.close(fig)
-        except:
-            print('Error: Video corrupted or no landmarks visible')
-    
+
     for i in range(len(frames_list) - len(frame_landmark_list)):
         #filling frame_landmark_list in case of error
         frame_landmark_list.append(frame_landmark_list[i])
@@ -102,9 +112,9 @@ def select_images_frames(path_to_images):
         images_list.append(img)
     return images_list
 
-def generate_cropped_landmarks(frames_list, pad=50):
+def generate_cropped_landmarks(frames_list, pad=50, fa=None):
     frame_landmark_list = []
-    fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device ='cuda:0')
+    # fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device ='cuda:0')
     
     for i in range(len(frames_list)):
         try:
@@ -137,7 +147,7 @@ def generate_cropped_landmarks(frames_list, pad=50):
             ax.axis('off')
 
             fig.canvas.draw()
-    
+
             data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 

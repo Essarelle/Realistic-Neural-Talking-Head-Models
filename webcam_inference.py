@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 import cv2
 from matplotlib import pyplot as plt
@@ -10,11 +12,23 @@ from webcam_demo.webcam_extraction_conversion import *
 
 """Init"""
 
-#Paths
-path_to_model_weights = 'model_weights.tar'
-path_to_embedding = 'e_hat_video.tar'
 
-device = torch.device("cuda:0")
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model')
+    parser.add_argument('--embedding')
+    parser.add_argument('--video')
+
+    return parser.parse_args()
+
+
+#Paths
+args = parse_args()
+path_to_model_weights = args.model
+path_to_embedding = args.embedding
+
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda" if use_cuda else 'cpu')
 cpu = torch.device("cpu")
 
 checkpoint = torch.load(path_to_model_weights, map_location=cpu) 
@@ -32,7 +46,7 @@ G.finetuning_init()
 
 """Main"""
 print('PRESS Q TO EXIT')
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(args.video)
 
 with torch.no_grad():
     while True:
@@ -56,7 +70,7 @@ with torch.no_grad():
         out1 = out1.to(cpu).numpy()
         #plt.imshow(out1)
         #plt.show()
-        
+
         #plt.clf()
         out2 = x.transpose(1,3)[0]/255
         #for img_no in range(1,x.shape[0]):
