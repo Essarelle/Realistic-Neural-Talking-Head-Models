@@ -68,6 +68,7 @@ num_epochs = args.epochs
 
 # initiate checkpoint if inexistant
 if not os.path.isfile(path_to_chkpt):
+    os.makedirs(os.path.dirname(path_to_chkpt))
     print('Initiating new checkpoint...')
     torch.save({
         'epoch': epoch,
