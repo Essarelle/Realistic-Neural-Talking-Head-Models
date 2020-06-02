@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from datetime import datetime
+import matplotlib
 from matplotlib import pyplot as plt
 
 plt.ion()
@@ -33,12 +34,13 @@ args = parser.parse_args()
 
 
 def print_fun(s):
-    print(s)
+    print_fun(s)
     sys.stdout.flush()
 
 
 """Create dataset and net"""
 display_training = False
+matplotlib.use('agg')
 device = torch.device("cuda:0")
 cpu = torch.device("cpu")
 batch_size = args.batch_size
@@ -107,7 +109,7 @@ if not os.path.isfile(path_to_chkpt):
     D.apply(init_weights)
     E.apply(init_weights)
 
-    print('Initiating new checkpoint...')
+    print_fun('Initiating new checkpoint...')
     torch.save({
         'epoch': epoch,
         'lossesG': lossesG,
@@ -120,7 +122,7 @@ if not os.path.isfile(path_to_chkpt):
         'optimizerG': optimizerG.state_dict(),
         'optimizerD': optimizerD.state_dict()
     }, path_to_chkpt)
-    print('...Done')
+    print_fun('...Done')
 
 """Loading from past checkpoint"""
 checkpoint = torch.load(path_to_chkpt, map_location=cpu)
@@ -226,7 +228,7 @@ for epoch in range(epochCurrent, num_epochs):
 
         step = epoch * num_batches + i_batch
         # Output training stats
-        if i_batch % 5 == 0 and i_batch > 0:
+        if step % 20 == 0:
             print_fun(
                 '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
                 % (epoch, num_epochs, i_batch, len(dataLoader),
@@ -259,7 +261,7 @@ for epoch in range(epochCurrent, num_epochs):
 
     num_batches = i_batch
     if epoch % 1 == 0:
-        print('Saving latest...')
+        print_fun('Saving latest...')
         torch.save({
             'epoch': epoch + 1,
             'lossesG': lossesG,
@@ -274,4 +276,4 @@ for epoch in range(epochCurrent, num_epochs):
         },
             path_to_chkpt
         )
-        print('...Done saving latest')
+        print_fun('...Done saving latest')

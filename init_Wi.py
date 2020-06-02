@@ -5,7 +5,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from datetime import datetime
 import matplotlib
-#matplotlib.use('agg')
 from matplotlib import pyplot as plt
 plt.ion()
 import os
