@@ -34,7 +34,7 @@ args = parser.parse_args()
 
 
 def print_fun(s):
-    print_fun(s)
+    print(s)
     sys.stdout.flush()
 
 
