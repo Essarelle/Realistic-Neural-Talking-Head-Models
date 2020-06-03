@@ -37,7 +37,7 @@ def main():
 
     """Loading Embedder input"""
     frame_mark_video = select_frames(path_to_video, T)
-    frame_mark_video = generate_cropped_landmarks(frame_mark_video, pad=50, fa=face_aligner)
+    frame_mark_video = generate_cropped_landmarks(frame_mark_video, face_aligner, pad=50)
     frame_mark_video = torch.from_numpy(np.array(frame_mark_video)).type(dtype=torch.float) #T,2,256,256,3
     frame_mark_video = frame_mark_video.transpose(2,4).to(device)/255 #T,2,3,256,256
     f_lm_video = frame_mark_video.unsqueeze(0) #1,T,2,3,256,256

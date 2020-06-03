@@ -2,13 +2,15 @@ import argparse
 
 import torch
 import cv2
+import face_alignment
 from matplotlib import pyplot as plt
 
 from loss.loss_discriminator import *
 from loss.loss_generator import *
 from network.blocks import *
 from network.model import *
-from webcam_demo.webcam_extraction_conversion import *
+from dataset import video_extraction_conversion
+# from webcam_demo.webcam_extraction_conversion import *
 
 """Init"""
 
@@ -35,7 +37,7 @@ checkpoint = torch.load(path_to_model_weights, map_location=cpu)
 e_hat = torch.load(path_to_embedding, map_location=cpu)
 e_hat = e_hat['e_hat'].to(device)
 
-G = Generator(256, finetuning=True, e_finetuning=e_hat)
+G = Generator(224, finetuning=True, e_finetuning=e_hat)
 G.eval()
 
 """Training Init"""
@@ -46,11 +48,22 @@ G.finetuning_init()
 
 """Main"""
 print('PRESS Q TO EXIT')
-cap = cv2.VideoCapture(args.video)
+cap = cv2.VideoCapture(args.video if args.video else 0)
+fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device=device.type)
 
 with torch.no_grad():
     while True:
-        x, g_y, _ = generate_landmarks(cap=cap, device=device, pad=50)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frames_list = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)]
+        l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa)
+        x, g_y = l[0][0], l[0][1]
+        x = torch.from_numpy(x.transpose([2, 1, 0])).type(dtype=torch.float)
+        g_y = torch.from_numpy(g_y.transpose([2, 1, 0])).type(dtype=torch.float)
+        if use_cuda:
+            x, g_y = x.cuda(), g_y.cuda()
+        # x, g_y, _ = generate_landmarks(cap=cap, device=device, pad=50)
 
         g_y = g_y.unsqueeze(0)/255
         x = x.unsqueeze(0)/255
@@ -86,11 +99,11 @@ with torch.no_grad():
         out3 = out3.to(cpu).numpy()
         #plt.imshow(out3)
         #plt.show()
-        
+
         cv2.imshow('fake', cv2.cvtColor(out1, cv2.COLOR_BGR2RGB))
         cv2.imshow('me', cv2.cvtColor(out2, cv2.COLOR_BGR2RGB))
         cv2.imshow('ladnmark', cv2.cvtColor(out3, cv2.COLOR_BGR2RGB))
-        
+
         if cv2.waitKey(1) == ord('q'):
             break
 cap.release()
