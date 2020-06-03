@@ -28,7 +28,7 @@ parser.add_argument('--preprocessed')
 parser.add_argument('--train-dir', default='train')
 parser.add_argument('--vggface-dir', default='.')
 parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
-parser.add_argument('--frame-shape', default=224)
+parser.add_argument('--frame-shape', default=256)
 
 args = parser.parse_args()
 
@@ -58,7 +58,7 @@ if args.preprocessed:
                             pin_memory=True,
                             drop_last=True)
 else:
-    dataset = VidDataSet(K=K, path_to_mp4=args.data_dir, device=device, path_to_wi=path_to_Wi)
+    dataset = VidDataSet(K=K, path_to_mp4=args.data_dir, device=device, path_to_wi=path_to_Wi, size=frame_shape)
     dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
@@ -228,7 +228,7 @@ for epoch in range(epochCurrent, num_epochs):
 
         step = epoch * num_batches + i_batch
         # Output training stats
-        if step % 20 == 0:
+        if step % 5 == 0:
             print_fun(
                 '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
                 % (epoch, num_epochs, i_batch, len(dataLoader),
@@ -236,19 +236,19 @@ for epoch in range(epochCurrent, num_epochs):
             )
             pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
 
-            out = (x_hat[0] * 255).transpose(0, 2)
+            out = (x_hat[0] * 255).permute([1, 2, 0])
             for img_no in range(1, x_hat.shape[0] // 16):
-                out = torch.cat((out, (x_hat[img_no] * 255).transpose(0, 2)), dim=1)
+                out = torch.cat((out, (x_hat[img_no] * 255).permute([1, 2, 0])), dim=1)
             out1 = out.type(torch.int32).to(cpu).numpy()
 
-            out = (x[0] * 255).transpose(0, 2)
+            out = (x[0] * 255).permute([1, 2, 0])
             for img_no in range(1, x.shape[0] // 16):
-                out = torch.cat((out, (x[img_no] * 255).transpose(0, 2)), dim=1)
+                out = torch.cat((out, (x[img_no] * 255).permute([1, 2, 0])), dim=1)
             out2 = out.type(torch.int32).to(cpu).numpy()
 
-            out = (g_y[0] * 255).transpose(0, 2)
+            out = (g_y[0] * 255).permute([1, 2, 0])
             for img_no in range(1, g_y.shape[0] // 16):
-                out = torch.cat((out, (g_y[img_no] * 255).transpose(0, 2)), dim=1)
+                out = torch.cat((out, (g_y[img_no] * 255).permute(1, 2, 0)), dim=1)
             out3 = out.type(torch.int32).to(cpu).numpy()
 
             writer.add_image(

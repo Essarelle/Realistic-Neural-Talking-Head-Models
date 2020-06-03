@@ -72,7 +72,7 @@ def select_preprocess_frames(frames_path):
     return [image_frame_tuple for image_frame_tuple in zip(images_list, landmark_list)]
 
 
-def generate_landmarks(frames_list, face_aligner):
+def generate_landmarks(frames_list, face_aligner, size=256):
     frame_landmark_list = []
     fa = face_aligner
 
@@ -85,7 +85,8 @@ def generate_landmarks(frames_list, face_aligner):
         maxx, maxy = np.max(preds, axis=0)
         minx, miny = np.min(preds, axis=0)
         margin = 0.4
-        miny = max(int(miny - (maxy - miny) * margin), 0)
+        margin_top = margin + 0.3
+        miny = max(int(miny - (maxy - miny) * margin_top), 0)
         maxy = min(int(maxy + (maxy - miny) * margin), input.shape[0])
         minx = max(int(minx - (maxx - minx) * margin), 0)
         maxx = min(int(maxx + (maxx - minx) * margin), input.shape[1])
@@ -119,7 +120,7 @@ def generate_landmarks(frames_list, face_aligner):
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
-        input, data = cv2.resize(input, (224, 224), interpolation=cv2.INTER_AREA), cv2.resize(data, (224, 224),
+        input, data = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA), cv2.resize(data, (size, size),
                                                                                               interpolation=cv2.INTER_AREA)
         frame_landmark_list.append((input, data))
         plt.close(fig)
