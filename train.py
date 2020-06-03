@@ -228,7 +228,7 @@ for epoch in range(epochCurrent, num_epochs):
 
         step = epoch * num_batches + i_batch
         # Output training stats
-        if step % 5 == 0:
+        if step % 20 == 0:
             print_fun(
                 '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
                 % (epoch, num_epochs, i_batch, len(dataLoader),
