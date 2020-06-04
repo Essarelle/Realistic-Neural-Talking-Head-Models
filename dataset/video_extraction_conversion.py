@@ -14,31 +14,22 @@ def select_frames(video_path, K):
     # unused
     # w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     # h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    rand_frames_idx = []
+    for i in range(K):
+        idx = random.randint(0, n_frames - 1)
+        rand_frames_idx.append(idx)
 
-    if n_frames <= K:  # There are not enough frames in the video
-        rand_frames_idx = [1] * n_frames
-    else:
-        rand_frames_idx = [0] * n_frames
-        i = 0
-        while i < K:
-            idx = random.randint(0, n_frames - 1)
-            if rand_frames_idx[idx] == 0:
-                rand_frames_idx[idx] = 1
-                i += 1
-
+    rand_frames_idx = sorted(rand_frames_idx)
     frames_list = []
 
     # Read until video is completed or no frames needed
-    ret = True
-    frame_idx = 0
-    while ret and frame_idx < n_frames:
+    for frame_idx in rand_frames_idx:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
         ret, frame = cap.read()
+        if not ret:
+            break
 
-        if ret and rand_frames_idx[frame_idx] == 1:
-            RGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frames_list.append(RGB)
-
-        frame_idx += 1
+        frames_list.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
     cap.release()
 

@@ -3,7 +3,7 @@ import argparse
 
 import torch
 
-from dataset.video_extraction_conversion import select_frames, generate_cropped_landmarks
+from dataset.video_extraction_conversion import select_frames, generate_landmarks
 from network.blocks import *
 from network.model import Embedder
 import face_alignment
@@ -36,11 +36,13 @@ def main():
     )
 
     """Loading Embedder input"""
+    print("Select frames...")
     frame_mark_video = select_frames(path_to_video, T)
-    frame_mark_video = generate_cropped_landmarks(frame_mark_video, face_aligner, pad=50)
-    frame_mark_video = torch.from_numpy(np.array(frame_mark_video)).type(dtype=torch.float) #T,2,256,256,3
-    frame_mark_video = frame_mark_video.transpose(2,4).to(device)/255 #T,2,3,256,256
-    f_lm_video = frame_mark_video.unsqueeze(0) #1,T,2,3,256,256
+    print("Generate landmarks...")
+    frame_mark_video = generate_landmarks(frame_mark_video, face_aligner, size=256)
+    frame_mark_video = torch.from_numpy(np.array(frame_mark_video)).type(dtype=torch.float)  # T,2,256,256,3
+    frame_mark_video = frame_mark_video.permute([0, 1, 4, 2, 3]).to(device) / 255  # T,2,3,256,256
+    f_lm_video = frame_mark_video.unsqueeze(0)  # 1,T,2,3,256,256
 
     E = Embedder(256).to(device)
     E.eval()
@@ -51,13 +53,13 @@ def main():
 
     """Inference"""
     with torch.no_grad():
-        #forward
+        # forward
         # Calculate average encoding vector for video
         f_lm = f_lm_video
-        f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2], f_lm.shape[-1]) #BxT,2,3,224,224
+        f_lm_compact = f_lm.view(-1, f_lm.shape[-4], f_lm.shape[-3], f_lm.shape[-2], f_lm.shape[-1])  # BxT,2,3,224,224
         print('Run inference...')
-        e_vectors = E(f_lm_compact[:,0,:,:,:], f_lm_compact[:,1,:,:,:]) #BxT,512,1
-        e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1) #B,T,512,1
+        e_vectors = E(f_lm_compact[:, 0, :, :, :], f_lm_compact[:, 1, :, :, :])  # BxT,512,1
+        e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1)  # B,T,512,1
         e_hat_video = e_vectors.mean(dim=1)
 
     print('Saving e_hat...')
