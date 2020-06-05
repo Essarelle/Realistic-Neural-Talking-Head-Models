@@ -1,3 +1,5 @@
+import glob
+
 import torch
 from torch.utils.data import Dataset
 import face_alignment
@@ -17,31 +19,14 @@ class VidDataSet(Dataset):
             flip_input=False,
             device='cuda:0'
         )
+        self.video_paths = glob.glob(os.path.join(path_to_mp4, '*/*/*.mp4'))
 
     def __len__(self):
-        vid_num = 0
-        for person_id in os.listdir(self.path_to_mp4):
-            for video_id in os.listdir(os.path.join(self.path_to_mp4, person_id)):
-                for video in os.listdir(os.path.join(self.path_to_mp4, person_id, video_id)):
-                    vid_num += 1
-        return vid_num
+        return len(self.video_paths)
 
     def __getitem__(self, idx):
         vid_idx = idx
-        if idx < 0:
-            idx = self.__len__() + idx
-        for person_id in os.listdir(self.path_to_mp4):
-            for video_id in os.listdir(os.path.join(self.path_to_mp4, person_id)):
-                for video in os.listdir(os.path.join(self.path_to_mp4, person_id, video_id)):
-                    if idx != 0:
-                        idx -= 1
-                    else:
-                        break
-                if idx == 0:
-                    break
-            if idx == 0:
-                break
-        path = os.path.join(self.path_to_mp4, person_id, video_id, video)
+        path = self.video_paths[idx]
         frame_mark = select_frames(path, self.K)
         frame_mark = generate_landmarks(frame_mark, self.face_aligner, size=self.size)
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
