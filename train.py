@@ -223,8 +223,9 @@ for epoch in range(epochCurrent, num_epochs):
             optimizerD.step()
 
         for enum, idx in enumerate(i):
-            torch.save({'W_i': D.module.W_i[:, enum].unsqueeze(-1)},
-                       path_to_Wi + '/W_' + str(idx.item()) + '/W_' + str(idx.item()) + '.tar')
+            dataset.W_i[:, idx.item()] = D.module.W_i[:, enum]
+            # torch.save({'W_i': D.module.W_i[:, enum].unsqueeze(-1)},
+            #            path_to_Wi + '/W_' + str(idx.item()) + '/W_' + str(idx.item()) + '.tar')
 
         step = epoch * num_batches + i_batch
         # Output training stats

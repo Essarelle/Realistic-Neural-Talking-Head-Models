@@ -20,6 +20,7 @@ class VidDataSet(Dataset):
             device='cuda:0'
         )
         self.video_paths = glob.glob(os.path.join(path_to_mp4, '*/*/*.mp4'))
+        self.W_i = None
 
     def __len__(self):
         return len(self.video_paths)
@@ -44,16 +45,16 @@ class VidDataSet(Dataset):
         g_y = frame_mark[g_idx, 1].squeeze()
 
         if self.path_to_Wi is not None:
-            try:
-                W_i = torch.load(self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar',
-                                 map_location='cpu')['W_i'].requires_grad_(False)
-            except:
-                print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar')
-                W_i = torch.rand((512, 1))
-        else:
-            W_i = None
+            if self.W_i is None:
+                try:
+                    # Load
+                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar',
+                                     map_location='cpu')['W_i'].requires_grad_(False)
+                    self.W_i = W_i
+                except:
+                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar')
 
-        return frame_mark, x, g_y, vid_idx, W_i
+        return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
 
 
 class PreprocessDataset(Dataset):
