@@ -237,27 +237,23 @@ for epoch in range(epochCurrent, num_epochs):
             pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
 
             out = (x_hat[0] * 255).permute([1, 2, 0])
-            for img_no in range(1, x_hat.shape[0] // 16):
-                out = torch.cat((out, (x_hat[img_no] * 255).permute([1, 2, 0])), dim=1)
             out1 = out.type(torch.int32).to(cpu).numpy()
 
             out = (x[0] * 255).permute([1, 2, 0])
-            for img_no in range(1, x.shape[0] // 16):
-                out = torch.cat((out, (x[img_no] * 255).permute([1, 2, 0])), dim=1)
             out2 = out.type(torch.int32).to(cpu).numpy()
 
             out = (g_y[0] * 255).permute([1, 2, 0])
-            for img_no in range(1, g_y.shape[0] // 16):
-                out = torch.cat((out, (g_y[img_no] * 255).permute(1, 2, 0)), dim=1)
             out3 = out.type(torch.int32).to(cpu).numpy()
 
+            image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
             writer.add_image(
-                'Result', np.hstack((out1, out2, out3)).astype(np.uint8),
+                'Result', image,
                 global_step=step,
                 dataformats='HWC'
             )
             writer.add_scalar('loss_g', lossG.item(), global_step=step)
             writer.add_scalar('loss_d', lossD.item(), global_step=step)
+            writer.flush()
 
     num_batches = i_batch
     if epoch % 1 == 0:
