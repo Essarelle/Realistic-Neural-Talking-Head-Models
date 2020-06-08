@@ -34,7 +34,7 @@ class VidDataSet(Dataset):
                 frame_mark = select_frames(path, self.K)
                 ok = True
             except ValueError:
-                vid_idx += 1
+                vid_idx = torch.randint(low=0, high=len(self.video_paths), size=(1,))[0].item()
                 path = self.video_paths[idx]
         frame_mark = generate_landmarks(frame_mark, self.face_aligner, size=self.size)
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
