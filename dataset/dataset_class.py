@@ -27,7 +27,7 @@ class VidDataSet(Dataset):
 
     def __getitem__(self, idx):
         vid_idx = idx
-        path = self.video_paths[idx]
+        path = self.video_paths[vid_idx]
         ok = False
         while not ok:
             try:
@@ -35,7 +35,7 @@ class VidDataSet(Dataset):
                 ok = True
             except ValueError:
                 vid_idx = torch.randint(low=0, high=len(self.video_paths), size=(1,))[0].item()
-                path = self.video_paths[idx]
+                path = self.video_paths[vid_idx]
         frame_mark = generate_landmarks(frame_mark, self.face_aligner, size=self.size)
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
         frame_mark = frame_mark.permute([0, 1, 4, 2, 3]).to(self.device) / 255.  # K,2,3,224,224
