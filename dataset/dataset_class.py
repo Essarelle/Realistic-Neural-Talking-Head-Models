@@ -32,11 +32,11 @@ class VidDataSet(Dataset):
         while not ok:
             try:
                 frame_mark = select_frames(path, self.K)
+                frame_mark = generate_landmarks(frame_mark, self.face_aligner, size=self.size)
                 ok = True
-            except ValueError:
+            except Exception:
                 vid_idx = torch.randint(low=0, high=len(self.video_paths), size=(1,))[0].item()
                 path = self.video_paths[vid_idx]
-        frame_mark = generate_landmarks(frame_mark, self.face_aligner, size=self.size)
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
         frame_mark = frame_mark.permute([0, 1, 4, 2, 3]).to(self.device) / 255.  # K,2,3,224,224
 
