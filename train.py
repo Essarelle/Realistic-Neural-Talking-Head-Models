@@ -59,7 +59,12 @@ if args.preprocessed:
                             drop_last=True)
 else:
     dataset = VidDataSet(K=K, path_to_mp4=args.data_dir, device=device, path_to_wi=path_to_Wi, size=frame_shape)
-    dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dataLoader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+    )
 
 path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
 
