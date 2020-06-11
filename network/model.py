@@ -194,7 +194,7 @@ class Generator(nn.Module):
 #         return self.W_i
 
 class Discriminator(nn.Module):
-    def __init__(self, num_videos, path_to_Wi, finetuning=False, e_finetuning=None):
+    def __init__(self, num_videos, path_to_Wi, batch_size, finetuning=False, e_finetuning=None):
         super(Discriminator, self).__init__()
         self.path_to_Wi = path_to_Wi
         self.gpu_num = torch.cuda.device_count()
@@ -219,7 +219,7 @@ class Discriminator(nn.Module):
             if not os.path.isfile(self.path_to_Wi + '/W_' + str(num_videos) + '.tar'):
                 w_i = torch.rand(512, num_videos)
                 torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(num_videos) + '.tar')
-        self.W_i = nn.Parameter(torch.randn(512, 32))
+        self.W_i = nn.Parameter(torch.randn(512, batch_size))
         self.w_0 = nn.Parameter(torch.randn(512, 1))
         self.b = nn.Parameter(torch.randn(1))
 

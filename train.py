@@ -29,6 +29,8 @@ parser.add_argument('--train-dir', default='train')
 parser.add_argument('--vggface-dir', default='.')
 parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
 parser.add_argument('--frame-shape', default=256)
+parser.add_argument('--workers', default=4, type=int)
+parser.add_argument('--fa-device', default='cuda')
 
 args = parser.parse_args()
 
@@ -58,19 +60,23 @@ if args.preprocessed:
                             pin_memory=True,
                             drop_last=True)
 else:
-    dataset = VidDataSet(K=K, path_to_mp4=args.data_dir, device=device, path_to_wi=path_to_Wi, size=frame_shape)
+    dataset = VidDataSet(
+        K=K, path_to_mp4=args.data_dir,
+        device=args.fa_device, path_to_wi=path_to_Wi, size=frame_shape
+    )
     dataLoader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
+        num_workers=args.workers if not args.fa_device == 'cuda' else 0,
     )
 
 path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
 
 G = nn.DataParallel(Generator(frame_shape).to(device))
 E = nn.DataParallel(Embedder(frame_shape).to(device))
-D = nn.DataParallel(Discriminator(dataset.__len__(), path_to_Wi).to(device))
+D = nn.DataParallel(Discriminator(dataset.__len__(), path_to_Wi, args.batch_size).to(device))
 
 G.train()
 E.train()
@@ -152,8 +158,10 @@ pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
-log_step = int(round(0.00098 * num_batches + 19.02))
+log_step = int(round(0.002 * num_batches + 18))
+save_checkpoint = 1000
 print_fun(f"Will log each {log_step} step.")
+print_fun(f"Will save checkpoint each {save_checkpoint} step.")
 
 for epoch in range(epochCurrent, num_epochs):
     if epoch > epochCurrent:
@@ -263,7 +271,7 @@ for epoch in range(epochCurrent, num_epochs):
             writer.add_scalar('loss_d', lossD.item(), global_step=step)
             writer.flush()
 
-        if step % 1000 == 0:
+        if step != 0 and step % save_checkpoint == 0:
             print_fun('Saving latest...')
             torch.save({
                 'epoch': epoch + 1,

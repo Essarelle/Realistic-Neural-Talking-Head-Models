@@ -17,10 +17,19 @@ class VidDataSet(Dataset):
         self.face_aligner = face_alignment.FaceAlignment(
             face_alignment.LandmarksType._2D,
             flip_input=False,
-            device='cuda:0'
+            device=device
         )
         self.video_paths = glob.glob(os.path.join(path_to_mp4, '*/*/*.mp4'))
         self.W_i = None
+        if self.path_to_Wi is not None:
+            if self.W_i is None:
+                try:
+                    # Load
+                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar',
+                                     map_location='cpu')['W_i'].requires_grad_(False)
+                    self.W_i = W_i
+                except:
+                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar')
 
     def __len__(self):
         return len(self.video_paths)
@@ -38,21 +47,11 @@ class VidDataSet(Dataset):
                 vid_idx = torch.randint(low=0, high=len(self.video_paths), size=(1,))[0].item()
                 path = self.video_paths[vid_idx]
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
-        frame_mark = frame_mark.permute([0, 1, 4, 2, 3]).to(self.device) / 255.  # K,2,3,224,224
+        frame_mark = frame_mark.permute([0, 1, 4, 2, 3]) / 255.  # K,2,3,224,224
 
         g_idx = torch.randint(low=0, high=self.K, size=(1, 1))
         x = frame_mark[g_idx, 0].squeeze()
         g_y = frame_mark[g_idx, 1].squeeze()
-
-        if self.path_to_Wi is not None:
-            if self.W_i is None:
-                try:
-                    # Load
-                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar',
-                                     map_location='cpu')['W_i'].requires_grad_(False)
-                    self.W_i = W_i
-                except:
-                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar')
 
         return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
 
