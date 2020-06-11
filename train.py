@@ -263,6 +263,23 @@ for epoch in range(epochCurrent, num_epochs):
             writer.add_scalar('loss_d', lossD.item(), global_step=step)
             writer.flush()
 
+        if step % 1000 == 0:
+            print_fun('Saving latest...')
+            torch.save({
+                'epoch': epoch + 1,
+                'lossesG': lossesG,
+                'lossesD': lossesD,
+                'E_state_dict': E.module.state_dict(),
+                'G_state_dict': G.module.state_dict(),
+                'D_state_dict': D.module.state_dict(),
+                'num_vid': dataset.__len__(),
+                'i_batch': i_batch,
+                'optimizerG': optimizerG.state_dict(),
+                'optimizerD': optimizerD.state_dict()
+            },
+                path_to_chkpt
+            )
+
     num_batches = i_batch
     if epoch % 1 == 0:
         print_fun('Saving latest...')
