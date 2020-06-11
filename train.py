@@ -30,7 +30,7 @@ parser.add_argument('--vggface-dir', default='.')
 parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
 parser.add_argument('--frame-shape', default=256)
 parser.add_argument('--workers', default=4, type=int)
-parser.add_argument('--fa-device', default='cuda')
+parser.add_argument('--fa-device', default='cuda:0')
 
 args = parser.parse_args()
 
@@ -43,7 +43,7 @@ def print_fun(s):
 """Create dataset and net"""
 display_training = False
 matplotlib.use('agg')
-device = torch.device("cuda:0")
+device = torch.device("cuda")
 cpu = torch.device("cpu")
 batch_size = args.batch_size
 frame_shape = args.frame_shape
@@ -69,7 +69,7 @@ else:
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        num_workers=args.workers if not args.fa_device == 'cuda' else 0,
+        num_workers=args.workers if 'cuda' not in args.fa_device else 0,
     )
 
 path_to_chkpt = os.path.join(args.train_dir, 'model_weights.tar')
@@ -158,7 +158,7 @@ pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
-log_step = int(round(0.002 * num_batches + 18))
+log_step = int(round(0.0005 * num_batches + 18))
 save_checkpoint = 1000
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")

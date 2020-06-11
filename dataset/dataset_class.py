@@ -29,7 +29,10 @@ class VidDataSet(Dataset):
                                      map_location='cpu')['W_i'].requires_grad_(False)
                     self.W_i = W_i
                 except:
-                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar')
+                    # print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar')
+                    w_i = torch.rand(512, len(self))
+                    torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+                    self.W_i = w_i
 
     def __len__(self):
         return len(self.video_paths)
