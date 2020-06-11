@@ -146,7 +146,7 @@ lossesD = checkpoint['lossesD']
 num_vid = checkpoint['num_vid']
 optimizerG.load_state_dict(checkpoint['optimizerG'])
 optimizerD.load_state_dict(checkpoint['optimizerD'])
-i_batch_current = checkpoint['i_batch'] + 1
+prev_step = checkpoint['i_batch']
 
 G.train()
 E.train()
@@ -162,11 +162,13 @@ log_step = int(round(0.0005 * num_batches + 18))
 save_checkpoint = 1000
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")
+if prev_step != 0:
+    print_fun(f"Starting at {prev_step} step.")
 
 for epoch in range(epochCurrent, num_epochs):
-    if epoch > epochCurrent:
-        i_batch_current = 0
-        pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
+    if epochCurrent > epoch:
+        pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
+        continue
     pbar.set_postfix(epoch=epoch)
     for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(pbar, start=0):
 
@@ -242,12 +244,12 @@ for epoch in range(epochCurrent, num_epochs):
             # torch.save({'W_i': D.module.W_i[:, enum].unsqueeze(-1)},
             #            path_to_Wi + '/W_' + str(idx.item()) + '/W_' + str(idx.item()) + '.tar')
 
-        step = epoch * num_batches + i_batch
+        step = epoch * num_batches + i_batch + prev_step
         # Output training stats
         if step % log_step == 0:
             print_fun(
-                '[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
-                % (epoch, num_epochs, i_batch, len(dataLoader),
+                'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
+                % (step, epoch, num_epochs, i_batch, len(dataLoader),
                    lossD.item(), lossG.item(), r.mean(), r_hat.mean())
             )
             pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
@@ -274,32 +276,31 @@ for epoch in range(epochCurrent, num_epochs):
         if step != 0 and step % save_checkpoint == 0:
             print_fun('Saving latest...')
             torch.save({
-                'epoch': epoch + 1,
+                'epoch': epoch,
                 'lossesG': lossesG,
                 'lossesD': lossesD,
                 'E_state_dict': E.module.state_dict(),
                 'G_state_dict': G.module.state_dict(),
                 'D_state_dict': D.module.state_dict(),
                 'num_vid': dataset.__len__(),
-                'i_batch': i_batch,
+                'i_batch': step,
                 'optimizerG': optimizerG.state_dict(),
                 'optimizerD': optimizerD.state_dict()
             },
                 path_to_chkpt
             )
 
-    num_batches = i_batch
     if epoch % 1 == 0:
         print_fun('Saving latest...')
         torch.save({
-            'epoch': epoch + 1,
+            'epoch': epoch,
             'lossesG': lossesG,
             'lossesD': lossesD,
             'E_state_dict': E.module.state_dict(),
             'G_state_dict': G.module.state_dict(),
             'D_state_dict': D.module.state_dict(),
             'num_vid': dataset.__len__(),
-            'i_batch': i_batch,
+            'i_batch': step,
             'optimizerG': optimizerG.state_dict(),
             'optimizerD': optimizerD.state_dict()
         },
