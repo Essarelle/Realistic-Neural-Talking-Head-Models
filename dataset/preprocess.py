@@ -180,7 +180,7 @@ if args.reverse:
 
 start_index = 0
 if args.start_percent > 0:
-    start_index = int(len(video_paths) * start_index)
+    start_index = int(len(video_paths) * args.start_percent)
 
 lm_queue = queue.Queue(maxsize=300)
 landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
