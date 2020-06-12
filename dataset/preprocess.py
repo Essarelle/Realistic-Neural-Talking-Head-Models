@@ -15,6 +15,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--data-dir')
 parser.add_argument('--output')
 parser.add_argument('--threads', type=int, default=1)
+parser.add_argument('--reverse', action='store_true')
+parser.add_argument('--start-percent', type=float, default=0.0)
 
 args = parser.parse_args()
 
@@ -173,11 +175,20 @@ class LandmarksQueue(object):
 
 
 video_paths = glob.glob(os.path.join(path_to_mp4, '**/*'))
+if args.reversed:
+    video_paths.reverse()
+
+start_index = 0
+if args.start_percent > 0:
+    start_index = int(len(video_paths) * start_index)
+
 lm_queue = queue.Queue(maxsize=300)
 landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
 landmarks_queue.start_process()
 
 for i, video_dir in enumerate(video_paths):
+    if i < start_index:
+        continue
     print(f'[{i}/{len(video_paths)}] Process dir {video_dir}')
     process_images(video_dir, lm_queue, args.output)
 
@@ -185,4 +196,3 @@ print_fun('Done.')
 print_fun('Waiting stop threads...')
 landmarks_queue.stop()
 print_fun('Done.')
-
