@@ -1,11 +1,15 @@
 import argparse
-import torch
+import glob
+import queue
 import os
-import numpy as np
+import sys
+import threading
+import time
+
 import cv2
-from tqdm import tqdm
 import face_alignment
-from matplotlib import pyplot as plt
+import numpy as np
+import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data-dir')
@@ -14,135 +18,145 @@ parser.add_argument('--output')
 args = parser.parse_args()
 
 path_to_mp4 = args.data_dir
-K = 8
-num_vid = 0
 device = torch.device('cuda:0')
 saves_dir = args.output
-face_aligner = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False, device='cuda:0')
 
 if not os.path.isdir(saves_dir):
     os.mkdir(saves_dir)
 
 
-def generate_landmarks(frames_list, face_aligner):
-    frame_landmark_list = []
-    fa = face_aligner
-
-    for i in range(len(frames_list)):
-        try:
-            input = frames_list[i]
-            preds = fa.get_landmarks(input)[0]
-
-            dpi = 100
-            fig = plt.figure(figsize=(input.shape[1] / dpi, input.shape[0] / dpi), dpi=dpi)
-            ax = fig.add_subplot(1, 1, 1)
-            ax.imshow(np.ones(input.shape))
-            plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-            # chin
-            ax.plot(preds[0:17, 0], preds[0:17, 1], marker='', markersize=5, linestyle='-', color='green', lw=2)
-            # left and right eyebrow
-            ax.plot(preds[17:22, 0], preds[17:22, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
-            ax.plot(preds[22:27, 0], preds[22:27, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
-            # nose
-            ax.plot(preds[27:31, 0], preds[27:31, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
-            ax.plot(preds[31:36, 0], preds[31:36, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
-            # left and right eye
-            ax.plot(preds[36:42, 0], preds[36:42, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
-            ax.plot(preds[42:48, 0], preds[42:48, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
-            # outer and inner lip
-            ax.plot(preds[48:60, 0], preds[48:60, 1], marker='', markersize=5, linestyle='-', color='purple', lw=2)
-            ax.plot(preds[60:68, 0], preds[60:68, 1], marker='', markersize=5, linestyle='-', color='pink', lw=2)
-            ax.axis('off')
-
-            fig.canvas.draw()
-
-            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-            frame_landmark_list.append((input, data))
-            plt.close(fig)
-        except:
-            print('Error: Video corrupted or no landmarks visible')
-
-    for i in range(len(frames_list) - len(frame_landmark_list)):
-        # filling frame_landmark_list in case of error
-        frame_landmark_list.append(frame_landmark_list[i])
-
-    return frame_landmark_list
+def print_fun(s):
+    print(s)
+    sys.stdout.flush()
 
 
-def pick_images(video_path, pic_folder, num_images):
-    cap = cv2.VideoCapture(video_path)
+def generate_landmarks(frame, face_aligner):
+    input = frame
+    preds = face_aligner.get_landmarks(input)[0]
 
-    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    return preds
 
-    idxes = [1 if i % (n_frames // num_images + 1) == 0 else 0 for i in range(n_frames)]
 
-    frames_list = []
+def process_images(video_dir, lm_queue: queue.Queue):
+    videos = sorted([os.path.join(video_dir, v) for v in os.listdir(video_dir)])
+    frame_id = -1
+    for video_path in videos:
+        print_fun(f'Process {video_path}...')
+        cap = cv2.VideoCapture(video_path)
 
-    # Read until video is completed or no frames needed
-    ret = True
-    frame_idx = 0
-    frame_counter = 0
-    while ret and frame_idx < n_frames:
-        if idxes[frame_idx] == 1:
+        while True:
             ret, frame = cap.read()
             if not ret:
                 break
-            RGB = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frames_list.append(RGB)
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_id += 1
+            lm_queue.put((rgb, video_path, frame_id))
 
-            # frame_counter += 1
-            # pic_path = pic_folder + '_'+str(frame_counter)+'.jpg'
-            # cv2.imwrite(pic_path, frame)
-        else:
-            cap.grab()
+        cap.release()
 
-        frame_idx += 1
-
-    cap.release()
-
-    return frames_list
+    lm_queue.put(os.path.join(video_dir, 'dummy'))
 
 
-for person_id in tqdm(os.listdir(path_to_mp4)):
-    for video_id in tqdm(os.listdir(os.path.join(path_to_mp4, person_id))):
-        for video in os.listdir(os.path.join(path_to_mp4, person_id, video_id)):
+class LandmarksQueue(object):
+    def __init__(self, q: queue.Queue, root_dir):
+        self.landmarks = []
+        self.q = q
+        self.root_dir = root_dir
+        self.save_q = queue.Queue(maxsize=q.maxsize)
+        self.face_aligner = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, device='cuda:0')
+        self.save_frame_id = 0
+        self.lock = threading.Lock()
+        self.threads = []
 
-            video_path = os.path.join(path_to_mp4, person_id, video_id, video)
-            try:
-                frame_mark = pick_images(
-                    video_path,
-                    saves_dir + '/' + person_id + '/' + video_id + '/' + video.split('.')[0], K
-                )
-                frame_mark = generate_landmarks(frame_mark, face_aligner)
-                resized = []
-                for frame, landmark in frame_mark:
-                    resized.append(
-                        (cv2.resize(frame, (224, 224), interpolation=cv2.INTER_AREA),
-                         cv2.resize(landmark, (224, 224), interpolation=cv2.INTER_AREA))
-                    )
+    def start_process(self):
+        t = threading.Thread(target=self.process_lm, daemon=True)
+        t.start()
+        self.threads.append(t)
+        # t = threading.Thread(target=self.process_lm, daemon=True)
+        # t.start()
+        # self.threads.append(t)
+        t = threading.Thread(target=self.process_save, daemon=True)
+        t.start()
+        self.threads.append(t)
 
-                frame_mark = resized
-                if len(frame_mark) == K:
-                    final_list = [frame_mark[i][0] for i in range(K)]
-                    for i in range(K):
-                        final_list.append(frame_mark[i][1])  # K*2,224,224,3
-                    final_list = np.array(final_list)
+    def get_new_video_dir(self, video_path):
+        splitted = video_path.split('/')
+        video_id = splitted[-2]
+        person_id = splitted[-3]
+        new_dir = os.path.join(self.root_dir, person_id, video_id)
+        if not os.path.exists(new_dir):
+            os.makedirs(new_dir)
+        return new_dir
 
-                    final_list = np.transpose(final_list, [1, 0, 2, 3])
-                    final_list = np.reshape(final_list, (224, 224 * 2 * K, 3))
-                    final_list = cv2.cvtColor(final_list, cv2.COLOR_BGR2RGB)
+    def process_lm(self):
+        self.start = time.time()
+        while True:
+            item = self.q.get()
+            if isinstance(item, str):
+                if item == 'stop':
+                    break
+                else:
+                    # flush landmarks
+                    if len(self.landmarks) == 0:
+                        continue
 
-                    if not os.path.isdir(saves_dir + "/" + str(num_vid // 256)):
-                        os.mkdir(saves_dir + "/" + str(num_vid // 256))
+                    with self.lock:
+                        print_fun(f'Processed {len(self.landmarks)} landmarks: {time.time() - self.start}')
+                        self.start = time.time()
 
-                    cv2.imwrite(saves_dir + "/" + str(num_vid // 256) + "/" + str(num_vid) + ".png", final_list)
-                    num_vid += 1
-                    break  # take only one video
+                        dirname = self.get_new_video_dir(item)
+                        save_path = os.path.join(dirname, 'landmarks.npy')
+                        print_fun(f'save {save_path}')
+                        np.save(save_path, np.stack(self.landmarks))
+                        self.save_frame_id = 0
+                        self.landmarks = []
 
-            except:
-                print('ERROR: ', video_path)
+            else:
+                frame = item[0]
+                video_dir = self.get_new_video_dir(item[1])
+                try:
+                    landmark = generate_landmarks(frame, self.face_aligner)
 
-print('done')
+                    with self.lock:
+                        self.landmarks.append(landmark)
+                        self.save_q.put((frame, video_dir, self.save_frame_id))
+                        self.save_frame_id += 1
+                except Exception as e:
+                    print_fun(e)
+
+    def process_save(self):
+        while True:
+            item = self.save_q.get()
+            if isinstance(item, str):
+                if item == 'stop':
+                    break
+            else:
+                bgr = cv2.cvtColor(item[0], cv2.COLOR_RGB2BGR)
+                video_dir = item[1]
+                frame_id = item[2]
+                cv2.imwrite(os.path.join(video_dir, f'{frame_id:05d}.jpg'), bgr)
+
+    def stop(self):
+        self.q.put('stop')
+        # self.q.put('stop')
+        while not self.q.empty():
+            time.sleep(0.1)
+
+        self.save_q.put('stop')
+        for t in self.threads:
+            t.join(10)
+
+
+video_paths = glob.glob(os.path.join(path_to_mp4, '**/*'))
+lm_queue = queue.Queue(maxsize=200)
+landmarks_queue = LandmarksQueue(lm_queue, args.output)
+landmarks_queue.start_process()
+
+for video_dir in video_paths:
+    process_images(video_dir, lm_queue)
+
+print_fun('Done.')
+print_fun('Waiting stop threads...')
+landmarks_queue.stop()
+print_fun('Done.')
+
