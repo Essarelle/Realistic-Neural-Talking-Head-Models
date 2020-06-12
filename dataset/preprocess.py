@@ -177,7 +177,8 @@ lm_queue = queue.Queue(maxsize=300)
 landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
 landmarks_queue.start_process()
 
-for video_dir in video_paths:
+for i, video_dir in enumerate(video_paths):
+    print(f'[{i}/{len(video_paths)}] Process dir {video_dir}')
     process_images(video_dir, lm_queue, args.output)
 
 print_fun('Done.')
