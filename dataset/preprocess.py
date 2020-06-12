@@ -40,7 +40,7 @@ def generate_landmarks(frame, face_aligner):
 
 def process_images(video_dir, lm_queue: queue.Queue, out_dir):
     videos = sorted([os.path.join(video_dir, v) for v in os.listdir(video_dir)])
-    for video_path in videos:
+    for video_i, video_path in enumerate(videos):
         new_video_dir = get_new_video_dir(video_path, out_dir)
         if os.path.exists(os.path.join(new_video_dir, 'landmarks.npy')):
             print_fun(f'Skip already processed {video_path}...')
@@ -57,7 +57,8 @@ def process_images(video_dir, lm_queue: queue.Queue, out_dir):
                 break
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_id += 1
-            lm_queue.put((rgb, video_path, frame_id == frame_num))
+            last = frame_id == frame_num and video_i == len(videos) - 1
+            lm_queue.put((rgb, video_path, last))
 
         cap.release()
 
@@ -172,7 +173,7 @@ class LandmarksQueue(object):
 
 
 video_paths = glob.glob(os.path.join(path_to_mp4, '**/*'))
-lm_queue = queue.Queue(maxsize=200)
+lm_queue = queue.Queue(maxsize=300)
 landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
 landmarks_queue.start_process()
 
