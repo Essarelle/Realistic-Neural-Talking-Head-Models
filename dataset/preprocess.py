@@ -175,7 +175,7 @@ class LandmarksQueue(object):
 
 
 video_paths = glob.glob(os.path.join(path_to_mp4, '**/*'))
-if args.reversed:
+if args.reverse:
     video_paths.reverse()
 
 start_index = 0
