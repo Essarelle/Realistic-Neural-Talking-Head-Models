@@ -14,6 +14,7 @@ import torch
 parser = argparse.ArgumentParser()
 parser.add_argument('--data-dir')
 parser.add_argument('--output')
+parser.add_argument('--threads', type=int, default=1)
 
 args = parser.parse_args()
 
@@ -37,12 +38,18 @@ def generate_landmarks(frame, face_aligner):
     return preds
 
 
-def process_images(video_dir, lm_queue: queue.Queue):
+def process_images(video_dir, lm_queue: queue.Queue, out_dir):
     videos = sorted([os.path.join(video_dir, v) for v in os.listdir(video_dir)])
-    frame_id = -1
     for video_path in videos:
+        new_video_dir = get_new_video_dir(video_path, out_dir)
+        if os.path.exists(os.path.join(new_video_dir, 'landmarks.npy')):
+            print_fun(f'Skip already processed {video_path}...')
+            continue
+
         print_fun(f'Process {video_path}...')
         cap = cv2.VideoCapture(video_path)
+        frame_id = 0
+        frame_num = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
         while True:
             ret, frame = cap.read()
@@ -50,43 +57,68 @@ def process_images(video_dir, lm_queue: queue.Queue):
                 break
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_id += 1
-            lm_queue.put((rgb, video_path, frame_id))
+            lm_queue.put((rgb, video_path, frame_id == frame_num))
 
         cap.release()
 
-    lm_queue.put(os.path.join(video_dir, 'dummy'))
+
+def get_new_video_dir(video_path, output_dir):
+    splitted = video_path.split('/')
+    video_id = splitted[-2]
+    person_id = splitted[-3]
+    new_dir = os.path.join(output_dir, person_id, video_id)
+    if not os.path.exists(new_dir):
+        os.makedirs(new_dir)
+    return new_dir
 
 
 class LandmarksQueue(object):
-    def __init__(self, q: queue.Queue, root_dir):
+    def __init__(self, q: queue.Queue, root_dir, threads=1):
         self.landmarks = []
         self.q = q
         self.root_dir = root_dir
         self.save_q = queue.Queue(maxsize=q.maxsize)
+        self.lm = queue.Queue(maxsize=q.maxsize)
         self.face_aligner = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, device='cuda:0')
+        # Dry run
+        print_fun('Face alignment dry run...')
+        self.face_aligner.get_landmarks(np.random.randint(0, 255, size=(256, 256, 3)))
+        self.face_aligner.face_alignment_net(
+            torch.from_numpy(np.random.randint(0, 255, size=(1, 3, 256, 256))).float().div(255.).to(torch.device('cuda'))
+        )[-1].detach().cpu()
+        print_fun('Done.')
+
         self.save_frame_id = 0
         self.lock = threading.Lock()
+        self.num_threads = threads
         self.threads = []
 
     def start_process(self):
-        t = threading.Thread(target=self.process_lm, daemon=True)
-        t.start()
-        self.threads.append(t)
-        # t = threading.Thread(target=self.process_lm, daemon=True)
-        # t.start()
-        # self.threads.append(t)
+        for i in range(self.num_threads):
+            t = threading.Thread(target=self.process_lm, daemon=True)
+            t.start()
+            self.threads.append(t)
         t = threading.Thread(target=self.process_save, daemon=True)
         t.start()
         self.threads.append(t)
+        t = threading.Thread(target=self.save_landmarks, daemon=True)
+        t.start()
+        self.threads.append(t)
 
-    def get_new_video_dir(self, video_path):
-        splitted = video_path.split('/')
-        video_id = splitted[-2]
-        person_id = splitted[-3]
-        new_dir = os.path.join(self.root_dir, person_id, video_id)
-        if not os.path.exists(new_dir):
-            os.makedirs(new_dir)
-        return new_dir
+    def save_landmarks(self):
+        while True:
+            item = self.lm.get()
+            if isinstance(item, str):
+                if item == 'stop':
+                    break
+            else:
+                lmarks = item[0]
+                save_path = item[1]
+                print_fun(f'Processed {len(lmarks)} landmarks: {time.time() - self.start}')
+                self.start = time.time()
+
+                print_fun(f'save {save_path}')
+                np.save(save_path, lmarks)
 
     def process_lm(self):
         self.start = time.time()
@@ -95,34 +127,25 @@ class LandmarksQueue(object):
             if isinstance(item, str):
                 if item == 'stop':
                     break
-                else:
-                    # flush landmarks
-                    if len(self.landmarks) == 0:
-                        continue
-
-                    with self.lock:
-                        print_fun(f'Processed {len(self.landmarks)} landmarks: {time.time() - self.start}')
-                        self.start = time.time()
-
-                        dirname = self.get_new_video_dir(item)
-                        save_path = os.path.join(dirname, 'landmarks.npy')
-                        print_fun(f'save {save_path}')
-                        np.save(save_path, np.stack(self.landmarks))
-                        self.save_frame_id = 0
-                        self.landmarks = []
-
             else:
                 frame = item[0]
-                video_dir = self.get_new_video_dir(item[1])
+                video_dir = get_new_video_dir(item[1], self.root_dir)
+                last = item[2]
                 try:
                     landmark = generate_landmarks(frame, self.face_aligner)
-
-                    with self.lock:
-                        self.landmarks.append(landmark)
-                        self.save_q.put((frame, video_dir, self.save_frame_id))
-                        self.save_frame_id += 1
                 except Exception as e:
                     print_fun(e)
+                    continue
+
+                with self.lock:
+                    self.landmarks.append(landmark)
+                    self.save_q.put((frame, video_dir, self.save_frame_id))
+                    self.save_frame_id += 1
+                    if last:
+                        save_path = os.path.join(video_dir, 'landmarks.npy')
+                        self.lm.put((np.stack(self.landmarks).copy(), save_path))
+                        self.landmarks = []
+                        self.save_frame_id = 0
 
     def process_save(self):
         while True:
@@ -137,23 +160,24 @@ class LandmarksQueue(object):
                 cv2.imwrite(os.path.join(video_dir, f'{frame_id:05d}.jpg'), bgr)
 
     def stop(self):
-        self.q.put('stop')
-        # self.q.put('stop')
+        for i in range(self.num_threads):
+            self.q.put('stop')
         while not self.q.empty():
             time.sleep(0.1)
 
         self.save_q.put('stop')
+        self.lm.put('stop')
         for t in self.threads:
             t.join(10)
 
 
 video_paths = glob.glob(os.path.join(path_to_mp4, '**/*'))
 lm_queue = queue.Queue(maxsize=200)
-landmarks_queue = LandmarksQueue(lm_queue, args.output)
+landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
 landmarks_queue.start_process()
 
 for video_dir in video_paths:
-    process_images(video_dir, lm_queue)
+    process_images(video_dir, lm_queue, args.output)
 
 print_fun('Done.')
 print_fun('Waiting stop threads...')
