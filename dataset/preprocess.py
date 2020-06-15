@@ -193,7 +193,7 @@ lm_queue = queue.Queue(maxsize=300)
 landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
 landmarks_queue.start_process()
 
-print_fun(f'Number os videos: {len(video_paths)}')
+print_fun(f'Number of videos: {len(video_paths)}')
 for i, video_dir in enumerate(video_paths):
     if i < start_index:
         continue
