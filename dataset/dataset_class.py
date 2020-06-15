@@ -59,59 +59,117 @@ class VidDataSet(Dataset):
         return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
 
 
+def draw_landmark(landmark, canvas=None, size=None):
+    if canvas is None:
+        canvas = (np.ones(size) * 255).astype(np.uint8)
+
+    colors = [
+        (0, 255, 0),
+        (255, 165, 0),
+        (255, 165, 0),
+        (255, 0, 0),
+        (255, 0, 0),
+        (0, 0, 255),
+        (0, 0, 255),
+        (128, 0, 128),
+        (255, 192, 203),
+    ]
+
+    chin = landmark[0:17]
+    left_brow = landmark[17:22]
+    right_brow = landmark[22:27]
+    left_eye = landmark[36:42]
+    left_eye = np.concatenate((left_eye, [landmark[36]]))
+    right_eye = landmark[42:48]
+    right_eye = np.concatenate((right_eye, [landmark[42]]))
+    nose1 = landmark[27:31]
+    nose2 = landmark[31:36]
+    mouth = landmark[48:60]
+    mouth = np.concatenate((mouth, [landmark[48]]))
+    mouth_internal = landmark[60:68]
+    mouth_internal = np.concatenate((mouth_internal, [landmark[60]]))
+    lines = np.array([
+        chin, left_brow, right_brow,
+        left_eye, right_eye, nose1, nose2,
+        mouth, mouth_internal
+    ])
+    for i, line in enumerate(lines):
+        cur_color = colors[i]
+        cv2.polylines(
+            canvas,
+            np.int32([line]), False,
+            cur_color, thickness=2, lineType=cv2.LINE_AA
+        )
+
+    return canvas
+
+
 class PreprocessDataset(Dataset):
     def __init__(self, K, path_to_preprocess, path_to_Wi):
         self.K = K
         self.path_to_preprocess = path_to_preprocess
         self.path_to_Wi = path_to_Wi
 
-        self.person_id_list = os.listdir(self.path_to_preprocess)
+        self.video_dirs = glob.glob(os.path.join(path_to_preprocess, '*/*'))
+        self.W_i = None
+        if self.path_to_Wi is not None:
+            if self.W_i is None:
+                try:
+                    # Load
+                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar',
+                                     map_location='cpu')['W_i'].requires_grad_(False)
+                    self.W_i = W_i
+                except:
+                    # print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar')
+                    w_i = torch.rand(512, len(self))
+                    torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+                    self.W_i = w_i
 
     def __len__(self):
-        vid_num = 0
-        for person_id in self.person_id_list:
-            # for video_id in os.listdir(os.path.join(self.path_to_preprocess, person_id)):
-            #     if len(os.listdir(os.path.join(self.path_to_preprocess, person_id, video_id))) == 2*self.K:
-            #         vid_num += 1
-            vid_num += len(os.listdir(os.path.join(self.path_to_preprocess, person_id)))
-        return vid_num - 1
+        return len(self.video_dirs)
 
     def __getitem__(self, idx):
         vid_idx = idx
-        if idx < 0:
-            idx = self.__len__() + idx
-        # for person_id in self.person_id_list:
-        #     for video_id in os.listdir(os.path.join(self.path_to_preprocess, person_id)):
-        #         path = os.path.join(self.path_to_preprocess, person_id, video_id)
-        #         if len(os.listdir(path)) == 2*self.K:
-        #             if idx != 0:
-        #                 idx -= 1
-        #             else:
-        #                 break
-        #     if idx == 0:
-        #         break
-        path = os.path.join(self.path_to_preprocess,
-                            str(idx // 256),
-                            str(idx) + ".png")
-        frame_mark = select_preprocess_frames(path)
+        video_dir = self.video_dirs[vid_idx]
+        lm_path = os.path.join(video_dir, 'landmarks.npy')
+        jpg_paths = glob.glob(os.path.join(video_dir, '*.jpg'))
+        all_landmarks = np.load(lm_path)
+
+        while not os.path.exists(lm_path) and len(all_landmarks) == len(jpg_paths):
+            vid_idx = torch.randint(low=0, high=len(self.video_dirs), size=(1,))[0].item()
+            video_dir = self.video_dirs[vid_idx]
+            lm_path = os.path.join(video_dir, 'landmarks.npy')
+            if not os.path.exists(lm_path):
+                continue
+            jpg_paths = glob.glob(os.path.join(video_dir, '*.jpg'))
+            all_landmarks = np.load(lm_path)
+
+        if len(jpg_paths) != len(all_landmarks):
+            print('DELETE')
+            print(lm_path)
+
+        # Select K paths
+        random_indices = np.random.randint(0, len(jpg_paths), size=(self.K,))
+        paths = np.array(jpg_paths)[random_indices]
+        landmarks = all_landmarks[random_indices]
+
+        frame_mark = []
+        for i, path in enumerate(paths):
+            frame = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
+            lmark = draw_landmark(landmarks[i], size=frame.shape)
+            # cv2.imshow('img', lmark)
+            # cv2.waitKey(0)
+            # exit()
+            frame_mark.append((frame, lmark))
+
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
-        frame_mark = frame_mark.transpose(2, 4) / 255  # K,2,3,224,224
+        frame_mark = frame_mark.permute([0, 1, 4, 2, 3]) / 255.  # K,2,3,224,224
 
         g_idx = torch.randint(low=0, high=self.K, size=(1, 1))
         x = frame_mark[g_idx, 0].squeeze()
         g_y = frame_mark[g_idx, 1].squeeze()
 
-        if self.path_to_Wi is not None:
-            try:
-                W_i = torch.load(self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar',
-                                 map_location='cpu')['W_i'].requires_grad_(False)
-            except:
-                print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(vid_idx) + '/W_' + str(vid_idx) + '.tar')
-                W_i = torch.rand((512, 1))
-        else:
-            W_i = None
-
-        return frame_mark, x, g_y, vid_idx, W_i
+        return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
 
 
 class FineTuningImagesDataset(Dataset):

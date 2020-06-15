@@ -28,7 +28,7 @@ parser.add_argument('--preprocessed')
 parser.add_argument('--train-dir', default='train')
 parser.add_argument('--vggface-dir', default='.')
 parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
-parser.add_argument('--frame-shape', default=256)
+parser.add_argument('--frame-shape', default=256, type=int)
 parser.add_argument('--workers', default=4, type=int)
 parser.add_argument('--fa-device', default='cuda:0')
 
@@ -55,10 +55,12 @@ if not os.path.exists(path_to_Wi):
 
 if args.preprocessed:
     dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi)
-    dataLoader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
-                            num_workers=16,
-                            pin_memory=True,
-                            drop_last=True)
+    dataLoader = DataLoader(
+        dataset,
+        batch_size=batch_size, shuffle=True,
+        num_workers=0,
+        drop_last=True
+    )
 else:
     dataset = VidDataSet(
         K=K, path_to_mp4=args.data_dir,
