@@ -64,7 +64,7 @@ def draw_landmark(landmark, canvas=None, size=None):
         canvas = (np.ones(size) * 255).astype(np.uint8)
 
     colors = [
-        (0, 255, 0),
+        (0, 128, 0),
         (255, 165, 0),
         (255, 165, 0),
         (255, 0, 0),
@@ -132,7 +132,7 @@ class PreprocessDataset(Dataset):
         vid_idx = idx
         video_dir = self.video_dirs[vid_idx]
         lm_path = os.path.join(video_dir, 'landmarks.npy')
-        jpg_paths = glob.glob(os.path.join(video_dir, '*.jpg'))
+        jpg_paths = sorted(glob.glob(os.path.join(video_dir, '*.jpg')))
         if os.path.exists(lm_path):
             all_landmarks = np.load(lm_path)
 
