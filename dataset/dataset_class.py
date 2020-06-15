@@ -133,9 +133,10 @@ class PreprocessDataset(Dataset):
         video_dir = self.video_dirs[vid_idx]
         lm_path = os.path.join(video_dir, 'landmarks.npy')
         jpg_paths = glob.glob(os.path.join(video_dir, '*.jpg'))
-        all_landmarks = np.load(lm_path)
+        if os.path.exists(lm_path):
+            all_landmarks = np.load(lm_path)
 
-        while not os.path.exists(lm_path) and len(all_landmarks) == len(jpg_paths):
+        while not os.path.exists(lm_path) or len(all_landmarks) != len(jpg_paths):
             vid_idx = torch.randint(low=0, high=len(self.video_dirs), size=(1,))[0].item()
             video_dir = self.video_dirs[vid_idx]
             lm_path = os.path.join(video_dir, 'landmarks.npy')
@@ -143,6 +144,8 @@ class PreprocessDataset(Dataset):
                 continue
             jpg_paths = glob.glob(os.path.join(video_dir, '*.jpg'))
             all_landmarks = np.load(lm_path)
+            if len(all_landmarks) != len(jpg_paths):
+                continue
 
         if len(jpg_paths) != len(all_landmarks):
             print('DELETE')
