@@ -42,17 +42,19 @@ def generate_landmarks(frame, face_aligner):
 
 def process_images(video_dir, lm_queue: queue.Queue, out_dir):
     videos = sorted([os.path.join(video_dir, v) for v in os.listdir(video_dir)])
-    for video_i, video_path in enumerate(videos):
-        new_video_dir = get_new_video_dir(video_path, out_dir)
-        if os.path.exists(os.path.join(new_video_dir, 'landmarks.npy')):
-            jpgs = glob.glob(new_video_dir + '/*.jpg')
-            lm = np.load(new_video_dir + '/landmarks.npy')
-            if len(lm) == len(jpgs):
-                print_fun(f'Skip already processed {video_path}...')
-                continue
-            else:
-                print_fun(f'Re-process {video_path}...')
 
+    # First check
+    new_video_dir = get_new_video_dir(os.path.join(video_dir, 'dummy'), out_dir)
+    if os.path.exists(os.path.join(new_video_dir, 'landmarks.npy')):
+        jpgs = glob.glob(new_video_dir + '/*.jpg')
+        lm = np.load(new_video_dir + '/landmarks.npy')
+        if len(lm) == len(jpgs):
+            print_fun(f'Skip already processed {video_dir}...')
+            return
+        else:
+            print_fun(f'Re-process {video_dir}...')
+
+    for video_i, video_path in enumerate(videos):
         print_fun(f'Process {video_path}...')
         cap = cv2.VideoCapture(video_path)
         frame_id = 0
