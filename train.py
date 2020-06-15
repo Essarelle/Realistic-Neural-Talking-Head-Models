@@ -58,8 +58,8 @@ if args.preprocessed:
     dataLoader = DataLoader(
         dataset,
         batch_size=batch_size, shuffle=True,
-        num_workers=0,
-        drop_last=True
+        num_workers=args.workers,
+        drop_last=True,
     )
 else:
     dataset = VidDataSet(
