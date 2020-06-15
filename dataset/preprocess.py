@@ -50,6 +50,8 @@ def process_images(video_dir, lm_queue: queue.Queue, out_dir):
             if len(lm) == len(jpgs):
                 print_fun(f'Skip already processed {video_path}...')
                 continue
+            else:
+                print_fun(f'Re-process {video_path}...')
 
         print_fun(f'Process {video_path}...')
         cap = cv2.VideoCapture(video_path)
