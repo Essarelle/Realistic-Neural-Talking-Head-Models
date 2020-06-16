@@ -167,12 +167,15 @@ class PreprocessDataset(Dataset):
 
         frame_mark = torch.from_numpy(np.array(frame_mark)).type(dtype=torch.float)  # K,2,224,224,3
         frame_mark = frame_mark.permute([0, 1, 4, 2, 3]) / 255.  # K,2,3,224,224
+        frame_mark = frame_mark.requires_grad_(False)
 
         g_idx = torch.randint(low=0, high=self.K, size=(1, 1))
         x = frame_mark[g_idx, 0].squeeze()
         g_y = frame_mark[g_idx, 1].squeeze()
 
-        return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
+        w_i = self.W_i[:, vid_idx].unsqueeze(1)
+        w_i = w_i.detach()
+        return frame_mark, x, g_y, vid_idx, w_i
 
 
 class FineTuningImagesDataset(Dataset):

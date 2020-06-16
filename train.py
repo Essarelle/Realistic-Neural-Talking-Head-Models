@@ -25,6 +25,7 @@ parser.add_argument('-k', default=8, type=int)
 parser.add_argument('--batch-size', default=1, type=int)
 parser.add_argument('--epochs', default=10, type=int)
 parser.add_argument('--preprocessed')
+parser.add_argument('--save-checkpoint', type=int, default=1000)
 parser.add_argument('--train-dir', default='train')
 parser.add_argument('--vggface-dir', default='.')
 parser.add_argument('--data-dir', default='../image2image/ds_fa_vox')
@@ -58,8 +59,8 @@ if args.preprocessed:
     dataLoader = DataLoader(
         dataset,
         batch_size=batch_size, shuffle=True,
-        num_workers=args.workers,
         drop_last=True,
+        num_workers=args.workers,
     )
 else:
     dataset = VidDataSet(
@@ -161,7 +162,7 @@ pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
 log_step = int(round(0.0005 * num_batches + 18))
-save_checkpoint = 1000
+save_checkpoint = args.save_checkpoint
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")
 if prev_step != 0:
