@@ -161,7 +161,7 @@ pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
-log_step = int(round(0.0005 * num_batches + 18))
+log_step = int(round(0.005 * num_batches + 20))
 if num_batches == 1:
     log_step = 50
 save_checkpoint = args.save_checkpoint
@@ -301,7 +301,7 @@ for epoch in range(0, num_epochs):
             )
             dataset.save_w_i()
 
-    if epoch % log_step == 0:
+    if epoch % 1 == 0:
         print_fun('Saving latest...')
         torch.save({
             'epoch': epoch,
