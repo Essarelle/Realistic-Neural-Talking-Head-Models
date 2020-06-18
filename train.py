@@ -1,15 +1,18 @@
 """Main"""
 import argparse
+import os
+import time
+from datetime import datetime
+
+import matplotlib
+from matplotlib import pyplot as plt
+import tensorboardX
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from datetime import datetime
-import matplotlib
-from matplotlib import pyplot as plt
 
 plt.ion()
-import os
 
 from dataset.dataset_class import PreprocessDataset
 from dataset.dataset_class import VidDataSet
@@ -17,8 +20,6 @@ from dataset.video_extraction_conversion import *
 from loss.loss_discriminator import *
 from loss.loss_generator import *
 from network.model import *
-from tqdm import tqdm
-import tensorboardX
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-k', default=8, type=int)
@@ -56,9 +57,10 @@ if not os.path.exists(path_to_Wi):
 
 if args.preprocessed:
     dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi, frame_shape=frame_shape)
-    dataLoader = DataLoader(
+    data_loader = DataLoader(
         dataset,
-        batch_size=batch_size, shuffle=True,
+        batch_size=batch_size,
+        shuffle=True,
         drop_last=True,
         num_workers=args.workers,
     )
@@ -67,7 +69,7 @@ else:
         K=K, path_to_mp4=args.data_dir,
         device=args.fa_device, path_to_wi=path_to_Wi, size=frame_shape
     )
-    dataLoader = DataLoader(
+    data_loader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=True,
@@ -157,7 +159,6 @@ D.train()
 
 """Training"""
 batch_start = datetime.now()
-pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
@@ -174,8 +175,9 @@ for epoch in range(0, num_epochs):
     # if epochCurrent > epoch:
     #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
     #     continue
-    pbar.set_postfix(epoch=epoch)
-    for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(pbar, start=0):
+    # Reset random generator
+    np.random.seed(int(time.time()))
+    for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(data_loader):
 
         f_lm = f_lm.to(device)
         x = x.to(device)
@@ -254,9 +256,6 @@ for epoch in range(0, num_epochs):
         step = epoch * num_batches + i_batch + prev_step
         # Output training stats
         if step % log_step == 0:
-
-            pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
-
             out = (x_hat[0] * 255).permute([1, 2, 0])
             out1 = out.type(torch.int32).to(cpu).numpy()
 
@@ -268,7 +267,7 @@ for epoch in range(0, num_epochs):
             accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
             print_fun(
                 'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f\tMatch: %.3f'
-                % (step, epoch, num_epochs, i_batch, len(dataLoader),
+                % (step, epoch, num_epochs, i_batch, len(data_loader),
                    lossD.item(), lossG.item(), r.mean(), r_hat.mean(), accuracy)
             )
 

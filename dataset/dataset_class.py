@@ -1,4 +1,5 @@
 import glob
+import time
 
 import torch
 from torch.utils.data import Dataset
@@ -176,7 +177,7 @@ class PreprocessDataset(Dataset):
         frame_mark = frame_mark.permute([0, 1, 4, 2, 3]) / 255.  # K,2,3,224,224
         frame_mark = frame_mark.requires_grad_(False)
 
-        g_idx = torch.randint(low=0, high=self.K, size=(1, 1))
+        g_idx = np.random.randint(low=0, high=self.K, size=(1, 1))
         x = frame_mark[g_idx, 0].squeeze()
         g_y = frame_mark[g_idx, 1].squeeze()
 
