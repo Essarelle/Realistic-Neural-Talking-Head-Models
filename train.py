@@ -163,13 +163,16 @@ batch_start = datetime.now()
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
 log_step = int(round(0.005 * num_batches + 20))
-if num_batches == 1:
-    log_step = 50
+log_epoch = 1
+if num_batches <= 10:
+    log_step = 100
+    log_epoch = log_step
 save_checkpoint = args.save_checkpoint
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")
 if prev_step != 0:
     print_fun(f"Starting at {prev_step} step.")
+
 
 for epoch in range(0, num_epochs):
     # if epochCurrent > epoch:
@@ -300,7 +303,7 @@ for epoch in range(0, num_epochs):
             )
             dataset.save_w_i()
 
-    if epoch % 1 == 0:
+    if epoch % log_epoch == 0:
         print_fun('Saving latest...')
         torch.save({
             'epoch': epoch,
