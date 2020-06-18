@@ -58,6 +58,9 @@ class VidDataSet(Dataset):
 
         return frame_mark, x, g_y, vid_idx, self.W_i[:, vid_idx].unsqueeze(1)
 
+    def save_w_i(self):
+        torch.save({'W_i': self.W_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+
 
 def draw_landmark(landmark, canvas=None, size=None):
     if canvas is None:
@@ -105,10 +108,11 @@ def draw_landmark(landmark, canvas=None, size=None):
 
 
 class PreprocessDataset(Dataset):
-    def __init__(self, K, path_to_preprocess, path_to_Wi):
+    def __init__(self, K, path_to_preprocess, path_to_Wi, frame_shape=224):
         self.K = K
         self.path_to_preprocess = path_to_preprocess
         self.path_to_Wi = path_to_Wi
+        self.frame_shape = frame_shape
 
         self.video_dirs = glob.glob(os.path.join(path_to_preprocess, '*/*'))
         self.W_i = None
@@ -116,11 +120,13 @@ class PreprocessDataset(Dataset):
             if self.W_i is None:
                 try:
                     # Load
-                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar',
+                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar',
                                      map_location='cpu')['W_i'].requires_grad_(False)
                     self.W_i = W_i
                 except:
-                    # print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_paths)) + '.tar')
+                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
+                    import sys
+                    sys.stdout.flush()
                     w_i = torch.rand(512, len(self))
                     torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
                     self.W_i = w_i
@@ -137,7 +143,7 @@ class PreprocessDataset(Dataset):
             all_landmarks = np.load(lm_path)
 
         while not os.path.exists(lm_path) or len(all_landmarks) != len(jpg_paths):
-            vid_idx = torch.randint(low=0, high=len(self.video_dirs), size=(1,))[0].item()
+            vid_idx = vid_idx // 2
             video_dir = self.video_dirs[vid_idx]
             lm_path = os.path.join(video_dir, 'landmarks.npy')
             if not os.path.exists(lm_path):
@@ -147,10 +153,6 @@ class PreprocessDataset(Dataset):
             if len(all_landmarks) != len(jpg_paths):
                 continue
 
-        if len(jpg_paths) != len(all_landmarks):
-            print('DELETE')
-            print(lm_path)
-
         # Select K paths
         random_indices = np.random.randint(0, len(jpg_paths), size=(self.K,))
         paths = np.array(jpg_paths)[random_indices]
@@ -159,7 +161,12 @@ class PreprocessDataset(Dataset):
         frame_mark = []
         for i, path in enumerate(paths):
             frame = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
-            lmark = draw_landmark(landmarks[i], size=frame.shape)
+            cur_landmark = landmarks[i].copy()
+            if frame.shape[:2] != (self.frame_shape, self.frame_shape):
+                x_factor, y_factor = frame.shape[1] / self.frame_shape, frame.shape[0] / self.frame_shape
+                frame = cv2.resize(frame, (self.frame_shape, self.frame_shape), interpolation=cv2.INTER_AREA)
+                cur_landmark /= [x_factor, y_factor]
+            lmark = draw_landmark(cur_landmark, size=frame.shape)
             # cv2.imshow('img', lmark)
             # cv2.waitKey(0)
             # exit()
@@ -176,6 +183,9 @@ class PreprocessDataset(Dataset):
         w_i = self.W_i[:, vid_idx].unsqueeze(1)
         w_i = w_i.detach()
         return frame_mark, x, g_y, vid_idx, w_i
+
+    def save_w_i(self):
+        torch.save({'W_i': self.W_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
 
 
 class FineTuningImagesDataset(Dataset):

@@ -148,14 +148,32 @@ class LandmarksQueue(object):
                     continue
 
                 with self.lock:
-                    self.landmarks.append(landmark)
-                    self.save_q.put((frame, video_dir, self.save_frame_id))
+                    cropped_frame, recomputed_landmark = self.crop_landmark(frame, landmark)
+                    self.landmarks.append(recomputed_landmark)
+                    self.save_q.put((cropped_frame, video_dir, self.save_frame_id))
                     self.save_frame_id += 1
                     if last:
                         save_path = os.path.join(video_dir, 'landmarks.npy')
                         self.lm.put((np.stack(self.landmarks).copy(), save_path))
                         self.landmarks = []
                         self.save_frame_id = 0
+
+    @staticmethod
+    def crop_landmark(frame, landmark):
+        # crop frame
+        maxx, maxy = np.max(landmark, axis=0)
+        minx, miny = np.min(landmark, axis=0)
+        margin = 0.4
+        margin_top = margin + 0.3
+        miny = max(int(miny - (maxy - miny) * margin_top), 0)
+        maxy = min(int(maxy + (maxy - miny) * margin), frame.shape[0])
+        minx = max(int(minx - (maxx - minx) * margin), 0)
+        maxx = min(int(maxx + (maxx - minx) * margin), frame.shape[1])
+        new_frame = frame[miny:maxy, minx:maxx]
+        new_landmark = landmark.copy()
+        new_landmark -= [minx, miny]
+
+        return new_frame, new_landmark
 
     def process_save(self):
         while True:

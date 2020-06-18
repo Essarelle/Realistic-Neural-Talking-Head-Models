@@ -55,7 +55,7 @@ if not os.path.exists(path_to_Wi):
 
 
 if args.preprocessed:
-    dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi)
+    dataset = PreprocessDataset(K=K, path_to_preprocess=args.preprocessed, path_to_Wi=path_to_Wi, frame_shape=frame_shape)
     dataLoader = DataLoader(
         dataset,
         batch_size=batch_size, shuffle=True,
@@ -162,16 +162,18 @@ pbar = tqdm(dataLoader, leave=True, initial=0, disable=None)
 writer = tensorboardX.SummaryWriter(args.train_dir)
 num_batches = len(dataset) / args.batch_size
 log_step = int(round(0.0005 * num_batches + 18))
+if num_batches == 1:
+    log_step = 50
 save_checkpoint = args.save_checkpoint
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")
 if prev_step != 0:
     print_fun(f"Starting at {prev_step} step.")
 
-for epoch in range(epochCurrent, num_epochs):
-    if epochCurrent > epoch:
-        pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
-        continue
+for epoch in range(0, num_epochs):
+    # if epochCurrent > epoch:
+    #     pbar = tqdm(dataLoader, leave=True, initial=epoch, disable=None)
+    #     continue
     pbar.set_postfix(epoch=epoch)
     for i_batch, (f_lm, x, g_y, i, W_i) in enumerate(pbar, start=0):
 
@@ -204,7 +206,9 @@ for epoch in range(epochCurrent, num_epochs):
             """####################################################################################################################################################
             r, D_res_list = D(x, g_y, i)"""
 
-            lossG = criterionG(x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i, i)
+            lossG = criterionG(
+                x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, :batch_size], i
+            )
 
             """####################################################################################################################################################
             lossD = criterionDfake(r_hat) + criterionDreal(r)
@@ -250,11 +254,7 @@ for epoch in range(epochCurrent, num_epochs):
         step = epoch * num_batches + i_batch + prev_step
         # Output training stats
         if step % log_step == 0:
-            print_fun(
-                'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f'
-                % (step, epoch, num_epochs, i_batch, len(dataLoader),
-                   lossD.item(), lossG.item(), r.mean(), r_hat.mean())
-            )
+
             pbar.set_postfix(epoch=epoch, r=r.mean().item(), rhat=r_hat.mean().item(), lossG=lossG.item())
 
             out = (x_hat[0] * 255).permute([1, 2, 0])
@@ -265,6 +265,12 @@ for epoch in range(epochCurrent, num_epochs):
 
             out = (g_y[0] * 255).permute([1, 2, 0])
             out3 = out.type(torch.int32).to(cpu).numpy()
+            accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
+            print_fun(
+                'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f\tMatch: %.3f'
+                % (step, epoch, num_epochs, i_batch, len(dataLoader),
+                   lossD.item(), lossG.item(), r.mean(), r_hat.mean(), accuracy)
+            )
 
             image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
             writer.add_image(
@@ -274,6 +280,7 @@ for epoch in range(epochCurrent, num_epochs):
             )
             writer.add_scalar('loss_g', lossG.item(), global_step=step)
             writer.add_scalar('loss_d', lossD.item(), global_step=step)
+            writer.add_scalar('match', accuracy, global_step=step)
             writer.flush()
 
         if step != 0 and step % save_checkpoint == 0:
@@ -292,8 +299,9 @@ for epoch in range(epochCurrent, num_epochs):
             },
                 path_to_chkpt
             )
+            dataset.save_w_i()
 
-    if epoch % 1 == 0:
+    if epoch % log_step == 0:
         print_fun('Saving latest...')
         torch.save({
             'epoch': epoch,
@@ -309,4 +317,5 @@ for epoch in range(epochCurrent, num_epochs):
         },
             path_to_chkpt
         )
+        dataset.save_w_i()
         print_fun('...Done saving latest')

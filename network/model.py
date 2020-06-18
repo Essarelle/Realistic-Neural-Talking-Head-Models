@@ -219,7 +219,7 @@ class Discriminator(nn.Module):
             if not os.path.isfile(self.path_to_Wi + '/W_' + str(num_videos) + '.tar'):
                 w_i = torch.rand(512, num_videos)
                 torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(num_videos) + '.tar')
-        self.W_i = nn.Parameter(torch.randn(512, batch_size))
+        self.W_i = nn.Parameter(torch.randn(512, 32))
         self.w_0 = nn.Parameter(torch.randn(512, 1))
         self.b = nn.Parameter(torch.randn(1))
 
@@ -232,7 +232,7 @@ class Discriminator(nn.Module):
             self.w_prime = nn.Parameter(self.w_0 + self.e_finetuning.mean(dim=0))
 
     def load_W_i(self, W_i):
-        self.W_i.data = self.relu(W_i)
+        self.W_i.data[:, :W_i.shape[1]] = self.relu(W_i)
 
     def forward(self, x, y, i):
         out = torch.cat((x, y), dim=-3)  # out B*6*224*224
@@ -261,14 +261,16 @@ class Discriminator(nn.Module):
 
         out = out.squeeze(-1)  # out B*512*1
 
-        batch_start_idx = torch.cuda.current_device() * self.W_i.shape[1] // self.gpu_num
-        batch_end_idx = (torch.cuda.current_device() + 1) * self.W_i.shape[1] // self.gpu_num
+        batch_start_idx = torch.cuda.current_device() * x.shape[0] // self.gpu_num
+        batch_end_idx = (torch.cuda.current_device() + 1) * x.shape[0] // self.gpu_num
 
         if self.finetuning:
             out = torch.bmm(out.transpose(1, 2), (self.w_prime.unsqueeze(0).expand(out.shape[0], 512, 1))) + self.b
         else:
-            out = torch.bmm(out.transpose(1, 2), (self.W_i[:, batch_start_idx:batch_end_idx].unsqueeze(-1)).transpose(0,
-                                                                                                                      1) + self.w_0) + self.b  # 1x1
+            out = torch.bmm(
+                out.transpose(1, 2),
+                (self.W_i[:, batch_start_idx:batch_end_idx].unsqueeze(-1)).transpose(0, 1) + self.w_0
+            ) + self.b  # 1x1
 
         return out, [out1, out2, out3, out4, out5, out6, out7]
 
