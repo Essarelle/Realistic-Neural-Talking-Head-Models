@@ -63,51 +63,6 @@ class VidDataSet(Dataset):
         torch.save({'W_i': self.W_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
 
 
-def draw_landmark(landmark, canvas=None, size=None):
-    if canvas is None:
-        canvas = (np.ones(size) * 255).astype(np.uint8)
-
-    colors = [
-        (0, 128, 0),
-        (255, 165, 0),
-        (255, 165, 0),
-        (255, 0, 0),
-        (255, 0, 0),
-        (0, 0, 255),
-        (0, 0, 255),
-        (128, 0, 128),
-        (255, 192, 203),
-    ]
-
-    chin = landmark[0:17]
-    left_brow = landmark[17:22]
-    right_brow = landmark[22:27]
-    left_eye = landmark[36:42]
-    left_eye = np.concatenate((left_eye, [landmark[36]]))
-    right_eye = landmark[42:48]
-    right_eye = np.concatenate((right_eye, [landmark[42]]))
-    nose1 = landmark[27:31]
-    nose2 = landmark[31:36]
-    mouth = landmark[48:60]
-    mouth = np.concatenate((mouth, [landmark[48]]))
-    mouth_internal = landmark[60:68]
-    mouth_internal = np.concatenate((mouth_internal, [landmark[60]]))
-    lines = np.array([
-        chin, left_brow, right_brow,
-        left_eye, right_eye, nose1, nose2,
-        mouth, mouth_internal
-    ])
-    for i, line in enumerate(lines):
-        cur_color = colors[i]
-        cv2.polylines(
-            canvas,
-            np.int32([line]), False,
-            cur_color, thickness=2, lineType=cv2.LINE_AA
-        )
-
-    return canvas
-
-
 class PreprocessDataset(Dataset):
     def __init__(self, K, path_to_preprocess, path_to_Wi, frame_shape=224):
         self.K = K
@@ -126,6 +81,7 @@ class PreprocessDataset(Dataset):
                     self.W_i = W_i
                 except:
                     print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
+                    print("\n\nInitializing: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
                     import sys
                     sys.stdout.flush()
                     w_i = torch.rand(512, len(self))

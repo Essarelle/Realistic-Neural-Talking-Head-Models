@@ -23,12 +23,14 @@ def parse_args():
     parser.add_argument('--embedding')
     parser.add_argument('--video')
     parser.add_argument('--output')
+    parser.add_argument('--frame-size', type=int, default=224)
 
     return parser.parse_args()
 
 
 # Paths
 args = parse_args()
+frame_size = args.frame_size
 path_to_model_weights = args.model
 path_to_embedding = args.embedding
 
@@ -40,7 +42,7 @@ checkpoint = torch.load(path_to_model_weights, map_location=cpu)
 e_hat = torch.load(path_to_embedding, map_location=cpu)
 e_hat = e_hat['e_hat'].to(device)
 
-G = Generator(256, finetuning=True, e_finetuning=e_hat)
+G = Generator(frame_size, finetuning=True, e_finetuning=e_hat)
 G.eval()
 
 """Training Init"""
@@ -59,7 +61,7 @@ if args.output:
     # video_format = video.get(cv2.CAP_PROP_FORMAT)
     video_writer = cv2.VideoWriter(
         args.output, fourcc, fps,
-        frameSize=(256 * 3, 256)
+        frameSize=(frame_size * 3, frame_size)
     )
 
 with torch.no_grad():
@@ -68,7 +70,7 @@ with torch.no_grad():
         if not ret:
             break
         frames_list = [cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)]
-        l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa)
+        l = video_extraction_conversion.generate_landmarks(frames_list, face_aligner=fa, size=frame_size)
         x, g_y = l[0][0], l[0][1]
         x = torch.from_numpy(x.transpose([2, 0, 1])).type(dtype=torch.float)
         g_y = torch.from_numpy(g_y.transpose([2, 0, 1])).type(dtype=torch.float)

@@ -6,6 +6,7 @@ from datetime import datetime
 
 import matplotlib
 from matplotlib import pyplot as plt
+from skimage import metrics
 import tensorboardX
 import torch
 import torch.nn as nn
@@ -165,8 +166,8 @@ num_batches = len(dataset) / args.batch_size
 log_step = int(round(0.005 * num_batches + 20))
 log_epoch = 1
 if num_batches <= 10:
-    log_step = 100
-    log_epoch = log_step
+    log_step = 50
+    log_epoch = 100 // num_batches
 save_checkpoint = args.save_checkpoint
 print_fun(f"Will log each {log_step} step.")
 print_fun(f"Will save checkpoint each {save_checkpoint} step.")
@@ -268,10 +269,11 @@ for epoch in range(0, num_epochs):
             out = (g_y[0] * 255).permute([1, 2, 0])
             out3 = out.type(torch.int32).to(cpu).numpy()
             accuracy = np.sum(np.squeeze((np.abs(out1 - out2) <= 1))) / np.prod(out.shape)
+            ssim = metrics.structural_similarity(out1.astype(np.uint8).clip(0, 255), out2.astype(np.uint8).clip(0, 255), multichannel=True)
             print_fun(
-                'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(y)): %.4f\tMatch: %.3f'
+                'Step %d [%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tMatch: %.3f\tSSIM: %.3f'
                 % (step, epoch, num_epochs, i_batch, len(data_loader),
-                   lossD.item(), lossG.item(), r.mean(), r_hat.mean(), accuracy)
+                   lossD.item(), lossG.item(), accuracy, ssim)
             )
 
             image = np.hstack((out1, out2, out3)).astype(np.uint8).clip(0, 255)
@@ -283,6 +285,7 @@ for epoch in range(0, num_epochs):
             writer.add_scalar('loss_g', lossG.item(), global_step=step)
             writer.add_scalar('loss_d', lossD.item(), global_step=step)
             writer.add_scalar('match', accuracy, global_step=step)
+            writer.add_scalar('ssim', ssim, global_step=step)
             writer.flush()
 
         if step != 0 and step % save_checkpoint == 0:

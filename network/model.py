@@ -213,10 +213,10 @@ class Discriminator(nn.Module):
         self.sum_pooling = nn.AdaptiveAvgPool2d((1, 1))  # out 512*1*1
 
         if not finetuning:
-            print('Initializing Discriminator weights')
             if not os.path.isdir(self.path_to_Wi):
                 os.mkdir(self.path_to_Wi)
             if not os.path.isfile(self.path_to_Wi + '/W_' + str(num_videos) + '.tar'):
+                print('Initializing Discriminator weights...')
                 w_i = torch.rand(512, num_videos)
                 torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(num_videos) + '.tar')
         self.W_i = nn.Parameter(torch.randn(512, 32))

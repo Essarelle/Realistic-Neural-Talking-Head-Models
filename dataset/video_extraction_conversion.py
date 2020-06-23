@@ -63,7 +63,53 @@ def select_preprocess_frames(frames_path):
     return [image_frame_tuple for image_frame_tuple in zip(images_list, landmark_list)]
 
 
-def generate_landmarks(frames_list, face_aligner, size=256, resize=True):
+def draw_landmark(landmark, canvas=None, size=None):
+    if canvas is None:
+        canvas = (np.ones(size) * 255).astype(np.uint8)
+
+    colors = [
+        (0, 128, 0),
+        (220, 148, 0),
+        (220, 148, 0),
+        (165, 0, 0),
+        (165, 0, 0),
+        (0, 0, 165),
+        (0, 0, 165),
+        (128, 0, 128),
+        (160, 160, 160),
+    ]
+
+    chin = landmark[0:17]
+    left_brow = landmark[17:22]
+    right_brow = landmark[22:27]
+    left_eye = landmark[36:42]
+    left_eye = np.concatenate((left_eye, [landmark[36]]))
+    right_eye = landmark[42:48]
+    right_eye = np.concatenate((right_eye, [landmark[42]]))
+    nose1 = landmark[27:31]
+    nose1 = np.concatenate((nose1, [landmark[33]]))
+    nose2 = landmark[31:36]
+    mouth = landmark[48:60]
+    mouth = np.concatenate((mouth, [landmark[48]]))
+    mouth_internal = landmark[60:68]
+    mouth_internal = np.concatenate((mouth_internal, [landmark[60]]))
+    lines = np.array([
+        chin, left_brow, right_brow,
+        left_eye, right_eye, nose1, nose2,
+        mouth, mouth_internal
+    ])
+    for i, line in enumerate(lines):
+        cur_color = colors[i]
+        cv2.polylines(
+            canvas,
+            np.int32([line]), False,
+            cur_color, thickness=2, lineType=cv2.LINE_AA
+        )
+
+    return canvas
+
+
+def generate_landmarks(frames_list, face_aligner, size=256):
     frame_landmark_list = []
     fa = face_aligner
 
@@ -84,39 +130,17 @@ def generate_landmarks(frames_list, face_aligner, size=256, resize=True):
         input = input[miny:maxy, minx:maxx]
         preds -= [minx, miny]
 
-        dpi = 100
-        fig = plt.figure(figsize=(input.shape[1] / dpi, input.shape[0] / dpi), dpi=dpi)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.imshow(np.ones(input.shape))
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-        # chin
-        ax.plot(preds[0:17, 0], preds[0:17, 1], marker='', markersize=5, linestyle='-', color='green', lw=2)
-        # left and right eyebrow
-        ax.plot(preds[17:22, 0], preds[17:22, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
-        ax.plot(preds[22:27, 0], preds[22:27, 1], marker='', markersize=5, linestyle='-', color='orange', lw=2)
-        # nose
-        ax.plot(preds[27:31, 0], preds[27:31, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
-        ax.plot(preds[31:36, 0], preds[31:36, 1], marker='', markersize=5, linestyle='-', color='blue', lw=2)
-        # left and right eye
-        ax.plot(preds[36:42, 0], preds[36:42, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
-        ax.plot(preds[42:48, 0], preds[42:48, 1], marker='', markersize=5, linestyle='-', color='red', lw=2)
-        # outer and inner lip
-        ax.plot(preds[48:60, 0], preds[48:60, 1], marker='', markersize=5, linestyle='-', color='purple', lw=2)
-        ax.plot(preds[60:68, 0], preds[60:68, 1], marker='', markersize=5, linestyle='-', color='pink', lw=2)
-        ax.axis('off')
-
-        fig.canvas.draw()
-
-        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-        if resize:
+        if input.shape[:2] != (size, size):
+            x_factor, y_factor = input.shape[1] / size, input.shape[0] / size
             input = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA)
-            data = cv2.resize(data, (size, size), interpolation=cv2.INTER_AREA)
+            preds /= [x_factor, y_factor]
 
+        data = draw_landmark(preds, size=input.shape)
+
+        # if resize:
+        #     input = cv2.resize(input, (size, size), interpolation=cv2.INTER_AREA)
+        #     data = cv2.resize(data, (size, size), interpolation=cv2.INTER_AREA)
         frame_landmark_list.append((input, data))
-        plt.close(fig)
 
     for i in range(len(frames_list) - len(frame_landmark_list)):
         # filling frame_landmark_list in case of error
