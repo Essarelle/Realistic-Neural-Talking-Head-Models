@@ -75,8 +75,8 @@ def draw_landmark(landmark, canvas=None, size=None):
         (165, 0, 0),
         (0, 0, 165),
         (0, 0, 165),
+        # (160, 160, 160),
         (128, 0, 128),
-        (160, 160, 160),
     ]
 
     chin = landmark[0:17]
@@ -96,7 +96,8 @@ def draw_landmark(landmark, canvas=None, size=None):
     lines = np.array([
         chin, left_brow, right_brow,
         left_eye, right_eye, nose1, nose2,
-        mouth, mouth_internal
+        # mouth_internal,
+        mouth,
     ])
     for i, line in enumerate(lines):
         cur_color = colors[i]

@@ -8,6 +8,9 @@ import os
 from tqdm import tqdm
 
 
+E_LEN = 512
+
+
 # components
 class Embedder(nn.Module):
     def __init__(self, in_height):
@@ -23,7 +26,7 @@ class Embedder(nn.Module):
         self.self_att = SelfAttention(256)  # out 256*32*32
         self.resDown4 = ResBlockDown(256, 512)  # out 515*16*16
         self.resDown5 = ResBlockDown(512, 512)  # out 512*8*8
-        self.resDown6 = ResBlockDown(512, 512)  # out 512*4*4
+        self.resDown6 = ResBlockDown(512, E_LEN)  # out 512*4*4
         self.sum_pooling = nn.AdaptiveMaxPool2d((1, 1))  # out 512*1*1
 
     def forward(self, x, y):
@@ -41,7 +44,7 @@ class Embedder(nn.Module):
 
         out = self.sum_pooling(out)  # out 512*1*1
         out = self.relu(out)  # out 512*1*1
-        out = out.view(-1, 512, 1)  # out B*512*1
+        out = out.view(-1, E_LEN, 1)  # out B*512*1
         return out
 
 
@@ -106,7 +109,7 @@ class Generator(nn.Module):
                                  padding_size=1)  # out 3*224*224
         self.conv2d = nn.Conv2d(32, 3, 3, padding=1)
 
-        self.p = nn.Parameter(torch.rand(self.P_LEN, 512).normal_(0.0, 0.02))
+        self.p = nn.Parameter(torch.rand(self.P_LEN, E_LEN).normal_(0.0, 0.02))
 
         self.finetuning = finetuning
         self.psi = nn.Parameter(torch.rand(self.P_LEN, 1))
@@ -125,7 +128,7 @@ class Generator(nn.Module):
             e_psi = e_psi.expand(e.shape[0], self.P_LEN, 1)
         else:
             p = self.p.unsqueeze(0)
-            p = p.expand(e.shape[0], self.P_LEN, 512)
+            p = p.expand(e.shape[0], self.P_LEN, E_LEN)
             e_psi = torch.bmm(p, e)  # B, p_len, 1
 
         # in 3*224*224 for voxceleb2
@@ -208,8 +211,8 @@ class Discriminator(nn.Module):
         self.self_att = SelfAttention(256)  # out 256*32*32
         self.resDown4 = ResBlockDown(256, 512)  # out 512*16*16
         self.resDown5 = ResBlockDown(512, 512)  # out 512*8*8
-        self.resDown6 = ResBlockDown(512, 512)  # out 512*4*4
-        self.res = ResBlockD(512)  # out 512*4*4
+        self.resDown6 = ResBlockDown(512, E_LEN)  # out 512*4*4
+        self.res = ResBlockD(E_LEN)  # out 512*4*4
         self.sum_pooling = nn.AdaptiveAvgPool2d((1, 1))  # out 512*1*1
 
         if not finetuning:
@@ -219,13 +222,13 @@ class Discriminator(nn.Module):
                 print('Initializing Discriminator weights...')
                 w_i = torch.rand(512, num_videos)
                 torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(num_videos) + '.tar')
-        self.W_i = nn.Parameter(torch.randn(512, 32))
-        self.w_0 = nn.Parameter(torch.randn(512, 1))
+        self.W_i = nn.Parameter(torch.randn(E_LEN, num_videos))
+        self.w_0 = nn.Parameter(torch.randn(E_LEN, 1))
         self.b = nn.Parameter(torch.randn(1))
 
         self.finetuning = finetuning
         self.e_finetuning = e_finetuning
-        self.w_prime = nn.Parameter(torch.randn(512, 1))
+        self.w_prime = nn.Parameter(torch.randn(E_LEN, 1))
 
     def finetuning_init(self):
         if self.finetuning:
@@ -269,7 +272,7 @@ class Discriminator(nn.Module):
         else:
             out = torch.bmm(
                 out.transpose(1, 2),
-                (self.W_i[:, batch_start_idx:batch_end_idx].unsqueeze(-1)).transpose(0, 1) + self.w_0
+                (self.W_i[:, i].unsqueeze(-1)).transpose(0, 1) + self.w_0
             ) + self.b  # 1x1
 
         return out, [out1, out2, out3, out4, out5, out6, out7]

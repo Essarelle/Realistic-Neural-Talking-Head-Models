@@ -186,9 +186,9 @@ for epoch in range(0, num_epochs):
         f_lm = f_lm.to(device)
         x = x.to(device)
         g_y = g_y.to(device)
-        W_i = W_i.squeeze(-1).transpose(0, 1).to(device).requires_grad_()
+        # W_i = W_i.squeeze(-1).transpose(0, 1).to(device).requires_grad_()
 
-        D.module.load_W_i(W_i)
+        # D.module.load_W_i(W_i)
 
         with torch.autograd.enable_grad():
             # zero the parameter gradients
@@ -201,7 +201,7 @@ for epoch in range(0, num_epochs):
                                      f_lm.shape[-1])  # BxK,2,3,224,224
 
             e_vectors = E(f_lm_compact[:, 0, :, :, :], f_lm_compact[:, 1, :, :, :])  # BxK,512,1
-            e_vectors = e_vectors.view(-1, f_lm.shape[1], 512, 1)  # B,K,512,1
+            e_vectors = e_vectors.view(-1, f_lm.shape[1], E_LEN, 1)  # B,K,512,1
             e_hat = e_vectors.mean(dim=1)
 
             # train G and D
@@ -213,7 +213,7 @@ for epoch in range(0, num_epochs):
             r, D_res_list = D(x, g_y, i)"""
 
             lossG = criterionG(
-                x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, :batch_size], i
+                x, x_hat, r_hat, D_res_list, D_hat_res_list, e_vectors, D.module.W_i[:, i], i
             )
 
             """####################################################################################################################################################
@@ -252,8 +252,8 @@ for epoch in range(0, num_epochs):
             lossD.backward(retain_graph=False)
             optimizerD.step()
 
-        for enum, idx in enumerate(i):
-            dataset.W_i[:, idx.item()] = D.module.W_i[:, enum]
+        # for enum, idx in enumerate(i):
+        #     dataset.W_i[:, idx.item()] = D.module.W_i[:, enum]
             # torch.save({'W_i': D.module.W_i[:, enum].unsqueeze(-1)},
             #            path_to_Wi + '/W_' + str(idx.item()) + '/W_' + str(idx.item()) + '.tar')
 

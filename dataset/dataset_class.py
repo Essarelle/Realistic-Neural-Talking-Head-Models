@@ -71,22 +71,22 @@ class PreprocessDataset(Dataset):
         self.frame_shape = frame_shape
 
         self.video_dirs = glob.glob(os.path.join(path_to_preprocess, '*/*'))
-        self.W_i = None
-        if self.path_to_Wi is not None:
-            if self.W_i is None:
-                try:
-                    # Load
-                    W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar',
-                                     map_location='cpu')['W_i'].requires_grad_(False)
-                    self.W_i = W_i
-                except:
-                    print("\n\nerror loading: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
-                    print("\n\nInitializing: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
-                    import sys
-                    sys.stdout.flush()
-                    w_i = torch.rand(512, len(self))
-                    torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
-                    self.W_i = w_i
+        # self.W_i = None
+        # if self.path_to_Wi is not None:
+        #     if self.W_i is None:
+        #         try:
+        #             Load
+                    # W_i = torch.load(self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar',
+                    #                  map_location='cpu')['W_i'].requires_grad_(False)
+                    # self.W_i = W_i
+                # except:
+                #     print("error loading: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
+                #     print("Initializing: ", self.path_to_Wi + '/W_' + str(len(self.video_dirs)) + '.tar')
+                #     import sys
+                #     sys.stdout.flush()
+                #     w_i = torch.rand(512, len(self))
+                #     torch.save({'W_i': w_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+                #     self.W_i = w_i
 
     def __len__(self):
         return len(self.video_dirs)
@@ -137,12 +137,13 @@ class PreprocessDataset(Dataset):
         x = frame_mark[g_idx, 0].squeeze()
         g_y = frame_mark[g_idx, 1].squeeze()
 
-        w_i = self.W_i[:, vid_idx].unsqueeze(1)
-        w_i = w_i.detach()
-        return frame_mark, x, g_y, vid_idx, w_i
+        # w_i = self.W_i[:, vid_idx].unsqueeze(1)
+        # w_i = w_i.detach()
+        return frame_mark, x, g_y, vid_idx, torch.Tensor([])
 
     def save_w_i(self):
-        torch.save({'W_i': self.W_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+        # torch.save({'W_i': self.W_i}, self.path_to_Wi + '/W_' + str(len(self)) + '.tar')
+        pass
 
 
 class FineTuningImagesDataset(Dataset):
