@@ -17,6 +17,7 @@ parser.add_argument('--output')
 parser.add_argument('--threads', type=int, default=1)
 parser.add_argument('--reverse', action='store_true')
 parser.add_argument('--start-percent', type=float, default=0.0)
+parser.add_argument('--split-each-video', action='store_true')
 
 args = parser.parse_args()
 
@@ -40,11 +41,11 @@ def generate_landmarks(frame, face_aligner):
     return preds
 
 
-def process_images(video_dir, lm_queue: queue.Queue, out_dir):
+def process_images(video_dir, lm_queue: queue.Queue, out_dir, split_video=False):
     videos = sorted([os.path.join(video_dir, v) for v in os.listdir(video_dir)])
 
     # First check
-    new_video_dir = get_new_video_dir(os.path.join(video_dir, 'dummy'), out_dir)
+    new_video_dir = get_new_video_dir(os.path.join(video_dir, 'dummy'), out_dir, create=False)
     if os.path.exists(os.path.join(new_video_dir, 'landmarks.npy')):
         jpgs = glob.glob(new_video_dir + '/*.jpg')
         lm = np.load(new_video_dir + '/landmarks.npy')
@@ -66,26 +67,34 @@ def process_images(video_dir, lm_queue: queue.Queue, out_dir):
                 break
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_id += 1
-            last = frame_id == frame_num and video_i == len(videos) - 1
+
+            if split_video:
+                last = frame_id == frame_num
+            else:
+                last = frame_id == frame_num and video_i == len(videos) - 1
+
             lm_queue.put((rgb, video_path, last))
 
         cap.release()
 
 
-def get_new_video_dir(video_path, output_dir):
+def get_new_video_dir(video_path, output_dir, split_video=False, create=True):
     splitted = video_path.split('/')
     video_id = splitted[-2]
     person_id = splitted[-3]
     new_dir = os.path.join(output_dir, person_id, video_id)
-    if not os.path.exists(new_dir):
+    if split_video:
+        new_dir += f'-{os.path.basename(video_path)}'
+    if not os.path.exists(new_dir) and create:
         os.makedirs(new_dir)
     return new_dir
 
 
 class LandmarksQueue(object):
-    def __init__(self, q: queue.Queue, root_dir, threads=1):
+    def __init__(self, q: queue.Queue, root_dir, threads=1, split_video=False):
         self.landmarks = []
         self.q = q
+        self.split_video = split_video
         self.root_dir = root_dir
         self.save_q = queue.Queue(maxsize=q.maxsize)
         self.lm = queue.Queue(maxsize=q.maxsize)
@@ -139,7 +148,7 @@ class LandmarksQueue(object):
                     break
             else:
                 frame = item[0]
-                video_dir = get_new_video_dir(item[1], self.root_dir)
+                video_dir = get_new_video_dir(item[1], self.root_dir, self.split_video)
                 last = item[2]
                 try:
                     landmark = generate_landmarks(frame, self.face_aligner)
@@ -208,7 +217,7 @@ if args.start_percent > 0:
     start_index = int(len(video_paths) * args.start_percent)
 
 lm_queue = queue.Queue(maxsize=300)
-landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads)
+landmarks_queue = LandmarksQueue(lm_queue, args.output, threads=args.threads, split_video=args.split_each_video)
 landmarks_queue.start_process()
 
 print_fun(f'Number of videos: {len(video_paths)}')
@@ -216,7 +225,7 @@ for i, video_dir in enumerate(video_paths):
     if i < start_index:
         continue
     print_fun(f'[{i}/{len(video_paths)}] Process dir {video_dir}')
-    process_images(video_dir, lm_queue, args.output)
+    process_images(video_dir, lm_queue, args.output, split_video=args.split_each_video)
 
 print_fun('Done.')
 print_fun('Waiting stop threads...')
